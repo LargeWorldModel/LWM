@@ -66,7 +66,7 @@ sh tpu_requirements.sh
 
 ## Available models
 
-There are language-only and video-language versions, offering context sizes from 32K, to 128K, 256K and 1M tokens. The vision-langauge models are available only in Jax, and the language-only models are available in both PyTorch and Jax. Below are the names of the available models and their corresponding context sizes and capabilities:
+There are language-only and video-language versions, offering context sizes from 32K, to 128K, 256K and 1M tokens. The vision-language models are available only in Jax, and the language-only models are available in both PyTorch and Jax. Below are the names of the available models and their corresponding context sizes and capabilities:
 
 | Model Name         | Context Size | Language or Vision-Language | Chat or Base | URL                                                                                                                                          |
 |--------------------|--------------|-----------------------------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------|
