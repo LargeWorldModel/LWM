@@ -56,6 +56,8 @@ This work paves the way for training on massive datasets of long video and langu
 ## Setup
 Install the requirements with:
 ```
+conda create -n lwm python=3.10
+pip install -U "jax[cuda12_pip]==0.4.23" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 pip install -r requirements.txt
 ```
 or set up TPU VM with:
