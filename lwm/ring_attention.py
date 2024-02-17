@@ -586,19 +586,14 @@ NUM_LANES = 128
 NUM_SUBLANES = 8
 
 class SegmentIds(NamedTuple):
-    """SegmentIds for Q and KV sequences.
-
-    SegmentIds are used to generate segment mask, which prevents attention between
-    different segments in the input sequence. Each array is a list of ids
-    (integers).
-    Only the token with the same id can attend to each other.
+    """
     Named tuple for segment IDs used in segment-based masking within the attention mechanism.
     Segment IDs allow different parts of the input sequence to be treated as separate segments,
     preventing attention across segments.
 
     Attributes:
-      q: segment ids along the Q sequence.
-      kv: segment ids along the KV sequence.
+        q (jax.Array): Segment IDs for the query sequences.
+        kv (jax.Array): Segment IDs for the key/value sequences.
     """
 
 
