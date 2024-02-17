@@ -1,4 +1,3 @@
-# Comment:this is modification of this README file
 # Large World Model (LWM)
 
 [[Project]](https://largeworldmodel.github.io/)
