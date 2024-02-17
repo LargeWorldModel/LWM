@@ -1,19 +1,54 @@
-flax==0.7.0
-optax==0.1.7
-chex==0.1.82
-einops
-transformers==4.29.2
-datasets==2.13.0
-tqdm
-ml_collections
-wandb
-gcsfs
-requests
-typing-extensions
-sentencepiece
-tux @ git+https://github.com/lhao499/tux.git
-Pillow
-ipdb
-imageio[ffmpeg]
-decord
-tiktoken
+aiohttp==3.9.3
+aiosignal==1.3.1
+archspec @ file:///croot/archspec_1697725767277/work
+attrs==23.2.0
+boltons @ file:///work/ci_py311/boltons_1677685195580/work
+Brotli @ file:///work/ci_py311/brotli-split_1676830125088/work
+certifi @ file:///croot/certifi_1700501669400/work/certifi
+cffi @ file:///croot/cffi_1700254295673/work
+charset-normalizer @ file:///tmp/build/80754af9/charset-normalizer_1630003229654/work
+conda @ file:///croot/conda_1701719518285/work
+conda-content-trust @ file:///croot/conda-content-trust_1693490622020/work
+conda-libmamba-solver @ file:///croot/conda-libmamba-solver_1702997573971/work/src
+conda-package-handling @ file:///croot/conda-package-handling_1690999929514/work
+conda_package_streaming @ file:///croot/conda-package-streaming_1690987966409/work
+cryptography @ file:///croot/cryptography_1702070282333/work
+datasets==2.17.0
+dill==0.3.8
+distro @ file:///croot/distro_1701455004953/work
+filelock==3.13.1
+frozenlist==1.4.1
+fsspec==2023.10.0
+huggingface-hub==0.20.3
+idna @ file:///work/ci_py311/idna_1676822698822/work
+jsonpatch @ file:///tmp/build/80754af9/jsonpatch_1615747632069/work
+jsonpointer==2.1
+libmambapy @ file:///croot/mamba-split_1698782620632/work/libmambapy
+menuinst @ file:///croot/menuinst_1702390294373/work
+multidict==6.0.5
+multiprocess==0.70.16
+numpy==1.26.4
+packaging @ file:///croot/packaging_1693575174725/work
+pandas==2.2.0
+platformdirs @ file:///croot/platformdirs_1692205439124/work
+pluggy @ file:///work/ci_py311/pluggy_1676822818071/work
+pyarrow==15.0.0
+pyarrow-hotfix==0.6
+pycosat @ file:///croot/pycosat_1696536503704/work
+pycparser @ file:///tmp/build/80754af9/pycparser_1636541352034/work
+pyOpenSSL @ file:///croot/pyopenssl_1690223430423/work
+PySocks @ file:///work/ci_py311/pysocks_1676822712504/work
+python-dateutil==2.8.2
+pytz==2024.1
+PyYAML==6.0.1
+requests @ file:///croot/requests_1690400202158/work
+ruamel.yaml @ file:///work/ci_py311/ruamel.yaml_1676838772170/work
+six==1.16.0
+tqdm @ file:///croot/tqdm_1679561862951/work
+truststore @ file:///croot/truststore_1695244293384/work
+typing_extensions==4.9.0
+tzdata==2024.1
+urllib3 @ file:///croot/urllib3_1698257533958/work
+xxhash==3.4.1
+yarl==1.9.4
+zstandard @ file:///work/ci_py311_2/zstandard_1679339489613/work

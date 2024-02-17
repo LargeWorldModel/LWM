@@ -42,6 +42,22 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
 
 
 def main(argv):
+    """
+    Main function to generate images or videos based on text prompts using a combination of a VQGAN model for
+    vision processing and a VideoLLaMA model for text-to-vision generation.
+
+    The function initializes necessary configurations and models, processes text prompts, generates images or
+    video frames based on these prompts, and saves the output to a specified file.
+
+    Args:
+        argv (list): Command-line arguments passed to the script, not directly used in the function.
+
+    Raises:
+        ValueError: If the output file extension is unsupported.
+
+    The output is either a single image or a sequence of images (video) saved to the specified output file,
+    depending on the command-line arguments provided.
+    """
     assert FLAGS.output_file != ''
     if FLAGS.output_file.endswith('mp4'):
         assert FLAGS.n_frames > 1

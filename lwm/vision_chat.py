@@ -38,6 +38,35 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
 
 
 class Sampler:
+    """
+    A sampler for generating outputs from the VideoLLaMA model using video and text inputs.
+
+    This class encapsulates the process of video processing using a VQGAN model, tokenization of video and text inputs, 
+    and sampling from the VideoLLaMA model to generate text outputs.
+
+    Attributes:
+        mesh (jax.experimental.maps.Mesh): The JAX mesh configuration for parallel computation.
+        vqgan (VQGAN): The VQGAN model used for encoding video frames.
+        prefix_tokenizer (Tokenizer): Tokenizer for processing text inputs with specific configurations.
+        tokenizer (Tokenizer): General tokenizer for processing both text and video inputs.
+        n_tokens_per_frame (int): The number of tokens allocated for each frame in the input sequence.
+        min_buffer_size (int): The minimum buffer size for the input sequence to ensure model compatibility.
+        sharded_rng (jax.random.PRNGKey): The sharded random number generator key for generating outputs.
+        block_size (int): The block size used for partitioning the input sequence for efficient processing.
+        data_dim (int): The data dimensionality based on the mesh configuration.
+        config (VideoLLaMAConfig): The configuration object for the VideoLLaMA model.
+        model (FlaxVideoLLaMAForCausalLM): The VideoLLaMA model instance for generation.
+        params (dict): The parameters of the VideoLLaMA model, possibly sharded across devices.
+        model_ps (dict): PartitionSpec mapping for the model parameters.
+    
+    Methods:
+        __init__(): Initializes the sampler with the specified VQGAN checkpoint and tokenization settings.
+        _process_frame(image, size): Processes a single image frame to a consistent size and format.
+        _read_process_vision(path, max_n_frames): Reads and processes video or image input from a given path.
+        construct_input(prompts, max_n_frames): Constructs model input from prompts and processed video data.
+        _load_model(): Loads the VideoLLaMA model and its parameters, setting up sharding as needed.
+        __call__(prompts, max_n_frames): Generates text outputs from the VideoLLaMA model based on input prompts and video data.
+    """
     def __init__(self):
         self.mesh = VideoLLaMAConfig.get_jax_mesh(FLAGS.mesh_dim)
         self.vqgan = VQGAN(FLAGS.vqgan_checkpoint, replicate=False)
@@ -239,6 +268,18 @@ class Sampler:
         return output_text
         
 def main(argv):
+    """
+    Main function for generating text outputs from the VideoLLaMA model using video and text inputs.
+
+    This function initializes the necessary configurations, creates a Sampler instance, and processes
+    the provided prompts to generate responses. The generated responses are printed to the console.
+
+    Args:
+        argv (list): List of command-line arguments passed to the script.
+
+    The function reads the prompt and input file path from the command-line flags, initializes the JAX distributed
+    configuration, sets the random seed, and then uses the Sampler class to generate and print the model's output.
+    """
     assert FLAGS.prompt != ''
     assert FLAGS.input_file != ''
     

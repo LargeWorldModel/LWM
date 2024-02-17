@@ -25,6 +25,20 @@ VIDEO_LLAMA_STANDARD_CONFIGS = LLAMA_STANDARD_CONFIGS
 
 
 class VideoLLaMAConfig(LLaMAConfig):
+    """
+    Configuration class for VideoLLaMA. This class extends the LLaMAConfig class, adding additional
+    configuration options specific to VideoLLaMA model.
+
+    Parameters:
+    - vision_vocab_size (int): The size of the vision vocabulary. Default is 8448, representing 8192 + 256.
+    - tie_vision_embeddings (bool): Whether to tie the vision embeddings with some other embeddings. Default is False.
+    - sample_mode (str): Mode of sampling, can be 'all', 'text', or 'vision'. Determines the type of embeddings to be used.
+    - **kwargs: Additional keyword arguments passed to the superclass LLaMAConfig.
+
+    Methods:
+    - get_partition_rules(scan_layers=False, scan_axis=0): Returns partitioning rules for model parallelism.
+    - load_config(path): Loads the model configuration from a given path or a predefined config.
+    """
     model_type = "video_llama"
 
     def __init__(self, vision_vocab_size=8448, tie_vision_embeddings=False, sample_mode='all', **kwargs):
@@ -35,10 +49,21 @@ class VideoLLaMAConfig(LLaMAConfig):
 
     @staticmethod
     def get_partition_rules(scan_layers=False, scan_axis=0):
-        """ Parition rules for GPTJ. Note that these rules are orderd, so that
-            the beginning rules match first. It is important to use
-            PartitionSpec() instead of None here because JAX does not treat
-            None as a pytree leaf.
+        """
+        Defines the partitioning rules for distributing model parameters across devices.
+        These rules help in achieving model parallelism by splitting the model's computations.
+        
+        Parition rules for GPTJ. Note that these rules are orderd, so that
+        the beginning rules match first. It is important to use
+        PartitionSpec() instead of None here because JAX does not treat
+        None as a pytree leaf.
+        
+        Parameters:
+        - scan_layers (bool): Whether to scan through layers for partitioning. Default is False.
+        - scan_axis (int): Axis along which to scan and partition the layers. Default is 0.
+
+        Returns:
+        - A tuple of partitioning rules, with each rule specifying the parameter name pattern and its corresponding PartitionSpec.
         """
         if scan_layers:
             if scan_axis == 0:
@@ -109,6 +134,18 @@ class VideoLLaMAConfig(LLaMAConfig):
 
     @classmethod
     def load_config(cls, path):
+        """
+        Loads the model configuration from a predefined configuration or a file.
+
+        Parameters:
+        - path (str): Path to the configuration file or a key to a predefined configuration.
+
+        Returns:
+        - An instance of this configuration class initialized with the loaded configuration.
+
+        Raises:
+        - ValueError: If the path format is unrecognized or the file type is unsupported.
+        """
         if path in VIDEO_LLAMA_STANDARD_CONFIGS:
             return cls.from_dict(VIDEO_LLAMA_STANDARD_CONFIGS[path])
         load_type, load_path = path.split('::', 1)
@@ -124,10 +161,20 @@ class VideoLLaMAConfig(LLaMAConfig):
 
 class FlaxVideoLLaMAPreTrainedModel(FlaxPreTrainedModel):
     """
-    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
-    models.
-    """
+    Base class for all Flax VideoLLaMA models. This class provides common functionalities for weight initialization,
+    and offers a simple interface for downloading and loading pretrained models.
 
+    Attributes:
+    - config_class: Points to the VideoLLaMAConfig class.
+    - base_model_prefix (str): Prefix indicating the base model.
+    - module_class: Points to the FlaxVideoLLaMAModule class. To be defined by subclasses.
+
+    Methods:
+    - __init__: Constructor for the class, initializing the model with the provided configuration.
+    - init_cache: Initializes the cache for autoregressive generation.
+    - init_weights: Initializes or loads the model weights.
+    - __call__: Forward pass for the model, with support for various Flax-specific features like PRNG keys.
+    """
     config_class = VideoLLaMAConfig
     base_model_prefix = "transformer"
     module_class: nn.Module = None
@@ -145,7 +192,16 @@ class FlaxVideoLLaMAPreTrainedModel(FlaxPreTrainedModel):
         super().__init__(config, module, input_shape=input_shape, seed=seed, dtype=dtype, _do_init=_do_init)
 
     def init_cache(self, batch_size, max_length):
-        # init input variables to retrieve cache
+        """
+        Initializes the cache used in the transformer for faster sequential generation.
+
+        Parameters:
+        - batch_size (int): Batch size for the input data.
+        - max_length (int): Maximum length of the sequence to be generated.
+
+        Returns:
+        - Initialized cache variables for the model.
+        """
         input_ids = jnp.ones((batch_size, max_length))
         attention_mask = jnp.ones_like(input_ids)
         segment_ids = jnp.zeros_like(input_ids)
@@ -158,7 +214,17 @@ class FlaxVideoLLaMAPreTrainedModel(FlaxPreTrainedModel):
         return init_variables["cache"]
 
     def init_weights(self, rng, input_shape, params=None):
-        # init input tensors
+        """
+        Initializes or loads the model weights.
+
+        Parameters:
+        - rng: Random number generator (PRNG key) for weight initialization.
+        - input_shape: Shape of the input data.
+        - params (Optional): Pre-trained parameters to load into the model.
+
+        Returns:
+        - Initialized model parameters, either from scratch or loaded from provided parameters.
+        """
         input_ids = jnp.zeros(input_shape, dtype="i4")
         attention_mask = jnp.ones_like(input_ids)
         vision_masks = jnp.ones(input_ids.shape, dtype=bool)
@@ -195,6 +261,26 @@ class FlaxVideoLLaMAPreTrainedModel(FlaxPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ):
+        """
+        Forward pass for the VideoLLaMA model.
+
+        Parameters:
+        - input_ids: Input token ids.
+        - vision_masks: Masks to distinguish vision tokens from text tokens.
+        - attention_mask (Optional): Mask to avoid performing attention on padding token indices.
+        - segment_ids (Optional): Segment ids for token types.
+        - position_ids (Optional): Position indices for the tokens in the input sequence.
+        - params (dict, Optional): Pre-trained parameters for model layers.
+        - past_key_values (dict, Optional): Cached past key values for faster generation.
+        - dropout_rng: PRNGKey for dropout layers.
+        - train (bool): Whether the model is in training mode.
+        - output_attentions (bool, Optional): Whether to return the attentions tensors.
+        - output_hidden_states (bool, Optional): Whether to return the hidden states.
+        - return_dict (bool, Optional): Whether to return a FlaxBaseModelOutput instance or a tuple.
+
+        Returns:
+        - Model outputs, either as a FlaxBaseModelOutput object or a tuple, depending on return_dict.
+        """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -349,12 +435,36 @@ class FlaxVideoLLaMAModule(nn.Module):
 
 
 class FlaxVideoLLaMAForCausalLMModule(nn.Module):
+    """
+    The FlaxVideoLLaMAModule is a core component of the VideoLLaMA model architecture within the Flax framework. 
+    It is responsible for processing input data through embeddings, dropout, a series of transformer blocks, 
+    and layer normalization to produce a representation suitable for various tasks, such as causal language modeling.
+
+    The module supports processing both textual and visual inputs by employing separate embeddings for each and 
+    allows for flexible control over attention mechanisms, caching for efficient sequence generation, and the 
+    inclusion of hidden states and attention distributions in the output.
+
+    Attributes:
+        config (VideoLLaMAConfig): Configuration class for the VideoLLaMA model.
+        dtype (jnp.dtype): Data type for the module's parameters. Defaults to jnp.float32.
+        param_dtype (jnp.dtype): Data type for the parameters of submodules. Defaults to jnp.float32.
+        precision (Optional[Union[jax.lax.Precision, str]]): Numerical precision configuration for matrix multiplication operations.
+
+    Methods:
+        setup(): Initializes the module's subcomponents, such as embeddings, dropout, transformer blocks, and layer normalization.
+        __call__(input_ids, vision_masks, attention_mask, segment_ids, position_ids, deterministic=True, init_cache=False, output_attentions=False, output_hidden_states=False, return_dict=True): Defines the forward pass of the module.
+    """
     config: VideoLLaMAConfig
     dtype: jnp.dtype = jnp.float32
     param_dtype: jnp.dtype=jnp.float32
     precision: Optional[Union[jax.lax.Precision, str]]=None
 
     def setup(self):
+        """
+        Initializes the module's subcomponents. This includes text and vision embeddings to process different types of inputs,
+        a dropout layer for regularization, a collection of transformer blocks for sequential processing, and a layer normalization
+        for stabilizing the outputs of the transformer blocks.
+        """
         self.transformer = FlaxVideoLLaMAModule(self.config, dtype=self.dtype)
         self.vision_head = nn.Dense(
             self.config.vision_vocab_size,
@@ -386,6 +496,26 @@ class FlaxVideoLLaMAForCausalLMModule(nn.Module):
         output_hidden_states: bool = False,
         return_dict: bool = True,
     ):
+        """
+        Processes input data through the VideoLLaMA module, returning the final hidden states along with optional hidden states
+        and attention distributions.
+
+        Parameters:
+            input_ids (jnp.ndarray): Input token IDs for text and/or vision inputs.
+            vision_masks (jnp.ndarray): Masks to distinguish between text and vision tokens in the input.
+            attention_mask (jnp.ndarray): Mask to avoid performing attention on padding token indices.
+            segment_ids (jnp.ndarray): Segment IDs to distinguish different segments of the inputs (e.g., for tasks that involve multiple inputs like question answering).
+            position_ids (jnp.ndarray): Position indices for the tokens in the input sequence.
+            deterministic (bool): Specifies whether to operate in deterministic mode, typically used during inference to disable stochastic operations like dropout.
+            init_cache (bool): Whether to initialize a cache for efficiently generating sequences autoregressively.
+            output_attentions (bool): Whether to include attention distributions in the output.
+            output_hidden_states (bool): Whether to include all hidden states in the output.
+            return_dict (bool): Whether to return outputs in a dictionary format with named fields.
+
+        Returns:
+            A FlaxBaseModelOutput object containing the last hidden state, all hidden states (if requested),
+            and attention distributions (if requested). If return_dict is False, a tuple of these components is returned.
+        """
         batch_size, seq_length = input_ids.shape
         if attention_mask is None:
             attention_mask = jnp.ones_like(input_ids)
@@ -447,11 +577,41 @@ class FlaxVideoLLaMAForCausalLMModule(nn.Module):
 
 @add_start_docstrings("", "")
 class FlaxVideoLLaMAForCausalLM(FlaxVideoLLaMAPreTrainedModel):
+    """
+    This model is a part of the VideoLLaMA architecture for causal language modeling tasks. It is designed to handle
+    sequences for generative tasks, allowing for the generation of text conditioned on previous tokens as well as
+    multimodal inputs including vision data. The model supports various generation strategies and configurations.
+
+    Inherits from FlaxVideoLLaMAPreTrainedModel to utilize pre-trained weights and other foundational functionalities.
+
+    Attributes:
+        module_class: Points to the FlaxVideoLLaMAForCausalLMModule that defines the forward pass of the model.
+
+    Methods:
+        prepare_inputs_for_generation: Prepares the input data and cache for the generation process.
+        update_inputs_for_generation: Updates the input data based on the outputs from the previous generation step.
+        _sample_vision: Generates sequences using the model in a causal manner, specifically for vision-related tasks.
+        generate_vision: A high-level method for generating data, wrapping around the `_sample_vision` method.
+    """
     module_class = FlaxVideoLLaMAForCausalLMModule
 
     def prepare_inputs_for_generation(
         self, input_ids, max_length, attention_mask: Optional[jax.Array] = None, vision_masks = None
     ):
+        """
+        Prepares the inputs and cache for generating sequences with the model. This method initializes the cache
+        for autoregressive generation and prepares attention masks and other necessary inputs.
+
+        Parameters:
+            input_ids (jnp.ndarray): The input token IDs.
+            max_length (int): The maximum length of the sequence to be generated.
+            attention_mask (Optional[jax.Array]): The attention mask to avoid attending to padding tokens.
+            vision_masks (Optional[jnp.ndarray]): Masks to distinguish vision tokens from text tokens.
+
+        Returns:
+            A dictionary containing prepared inputs for the model, including 'past_key_values' for caching,
+            'attention_mask', 'position_ids', and 'vision_masks'.
+        """
         # initializing the cache
         batch_size, seq_length = input_ids.shape
 
@@ -474,6 +634,17 @@ class FlaxVideoLLaMAForCausalLM(FlaxVideoLLaMAPreTrainedModel):
         }
 
     def update_inputs_for_generation(self, model_outputs, model_kwargs):
+        """
+        Updates the inputs for the next generation step based on the outputs from the model.
+
+        Parameters:
+            model_outputs: The outputs from the model's forward pass.
+            model_kwargs: The keyword arguments for the model's forward pass.
+
+        Returns:
+            A dictionary with updated inputs for the model, including 'past_key_values', 'position_ids',
+            'attention_mask', and 'vision_masks'.
+        """
         return {
             "past_key_values":  model_outputs.past_key_values,
             "position_ids": model_kwargs["position_ids"][:, -1:] + 1,
@@ -495,6 +666,26 @@ class FlaxVideoLLaMAForCausalLM(FlaxVideoLLaMAPreTrainedModel):
         params: Optional[Dict[str, jnp.ndarray]] = None,
         model_kwargs: Optional[Dict[str, jnp.ndarray]] = None,
     ):
+        """
+        Generates sequences for vision-related tasks using the model in a causal manner. This method supports various
+        generation strategies and configurations, allowing for controlled sequence generation.
+
+        Parameters:
+            input_ids (jnp.ndarray): The input token IDs. For vision tasks, this can be set to None.
+            max_length (int, Optional): The maximum length of the sequence to be generated.
+            pad_token_id (int, Optional): The token ID used for padding.
+            eos_token_id (int, Optional): The token ID that signifies the end of a sequence.
+            prng_key (jnp.ndarray, Optional): The pseudo-random number generator key for stochastic operations like sampling.
+            logits_processor (FlaxLogitsProcessorList, Optional): Processors to manipulate logits during generation.
+            logits_warper (FlaxLogitsProcessorList, Optional): Processors to warp logits during generation.
+            cfg_scales (jnp.ndarray): Scales for controlling the randomness of generation in conditional generation tasks.
+            trace (bool): Whether to trace the execution for more efficient compilation, relevant for TPU execution.
+            params (Dict[str, jnp.ndarray], Optional): Pre-trained parameters for the model.
+            model_kwargs (Dict[str, jnp.ndarray], Optional): Additional model-specific keyword arguments.
+
+        Returns:
+            A FlaxSampleOutput object containing the generated sequences.
+        """
         # init values
         max_length = max_length if max_length is not None else self.generation_config.max_length
         pad_token_id = pad_token_id if pad_token_id is not None else self.generation_config.pad_token_id
@@ -599,6 +790,23 @@ class FlaxVideoLLaMAForCausalLM(FlaxVideoLLaMAPreTrainedModel):
         logits_processor: Optional[FlaxLogitsProcessorList] = None,
         **kwargs,
     ):
+        """
+        A high-level method for generating sequences, specifically designed for vision-related tasks. This method
+        wraps around the `_sample_vision` method, providing a user-friendly interface for sequence generation.
+
+        Parameters:
+            input_ids (jnp.ndarray): The input token IDs for the initial context.
+            cfg_scales (jnp.ndarray): Scales for controlling the randomness of generation in conditional generation tasks.
+            generation_config (GenerationConfig, Optional): Configuration for controlling the generation process.
+            prng_key (jnp.ndarray, Optional): The pseudo-random number generator key for stochastic operations like sampling.
+            trace (bool): Whether to trace the execution for more efficient compilation, relevant for TPU execution.
+            params (Dict[str, jnp.ndarray], Optional): Pre-trained parameters for the model.
+            logits_processor (FlaxLogitsProcessorList, Optional): Processors to manipulate logits during generation.
+            **kwargs: Additional keyword arguments for generation configurations.
+
+        Returns:
+            A FlaxSampleOutput object containing the generated sequences.
+        """
         # Handle `generation_config` and kwargs that might update it, and validate the `.generate()` call
         self._validate_model_class()
 
