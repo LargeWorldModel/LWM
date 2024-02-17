@@ -54,6 +54,7 @@ This work paves the way for training on massive datasets of long video and langu
 
 
 ## Setup
+### linux
 Install the requirements with:
 ```
 conda create -n lwm python=3.10
@@ -64,7 +65,10 @@ or set up TPU VM with:
 ```
 sh tpu_requirements.sh
 ```
-
+### windows
+Unsupported due to JAX
+### mac
+Unknown
 
 ## Available models
 
