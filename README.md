@@ -21,7 +21,7 @@ This work paves the way for training on massive datasets of long video and langu
 <div align="center">
   <img src="./imgs/single_needle_1M.png"/>
   <p>
-  LWM can retrieval facts across 1M context with high accuracy.
+  LWM can retrieve facts across 1M context with high accuracy.
   </p>
 </div>
 
