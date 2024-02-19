@@ -78,7 +78,7 @@ class Sampler:
     def _read_process_vision(self, path, max_n_frames):
         f = open_file(path, 'rb')
         if path.endswith('.png') or path.endswith('.jpg'):
-            image = Image.open(f)
+            image = Image.open(f).convert('RGB')
             vision = self._process_frame(image, 256)[None]
         else:
             vr = decord.VideoReader(f, ctx=decord.cpu(0))
