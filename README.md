@@ -54,6 +54,9 @@ This work paves the way for training on massive datasets of long video and langu
 
 
 ## Setup
+
+This codebase is supported on Ubuntu and has not been tested on Windows or macOS. We recommend using TPUs for training and inference, although it is also possible to use GPUs. On TPU, the code is highly optimized with Jax's Pallas and can achieve high MFUs with RingAttention at very large context sizes. On GPU, the code is based on XLA and is not as optimized as it is for TPU.
+
 Install the requirements with:
 ```
 conda create -n lwm python=3.10
@@ -62,7 +65,7 @@ pip install -r requirements.txt
 ```
 or set up TPU VM with:
 ```
-sh tpu_requirements.sh
+sh tpu_vm_setup.sh
 ```
 
 
@@ -139,4 +142,4 @@ If you use this codebase, or otherwise found our work valuable, please cite:
 
 ## License
 
-LWM's code and model weights are released under the Apache 2.0 License. See [LICENSE](https://github.com/LargeWorldModel/lwm/blob/main/LICENSE) for further details.
+LWM's code is released under the Apache 2.0 License. See [LICENSE](https://github.com/LargeWorldModel/lwm/blob/main/LICENSE) for further details. The models are released under the Llama-2 license.
