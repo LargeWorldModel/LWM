@@ -14,7 +14,7 @@ python3 -u -m lwm.vision_chat \
     --prompt="What is the video about?" \
     --input_file="$input_file" \
     --vqgan_checkpoint="$vqgan_checkpoint" \
-    --mesh_dim='!1,-1,32,1' \
+    --mesh_dim='!1,1,-1,1' \
     --dtype='fp32' \
     --load_llama_config='7b' \
     --max_n_frames=8 \
