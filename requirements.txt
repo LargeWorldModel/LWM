@@ -3,7 +3,7 @@ optax==0.1.7
 chex==0.1.82
 einops
 transformers==4.29.2
-datasets==2.13.0
+datasets==2.17.1
 tqdm
 ml_collections
 wandb
