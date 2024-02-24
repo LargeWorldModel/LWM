@@ -14,10 +14,25 @@ from datasets import load_dataset
 
 
 class DatasetFactory(object):
-    """ Datset builder class. """
+    """
+    A factory class for creating dataset instances based on configuration parameters.
 
+    This class supports loading different types of datasets, including those from Hugging Face's datasets library and custom JSON-formatted datasets. It facilitates the easy creation and configuration of datasets for machine learning models, particularly those dealing with NLP and potentially vision tasks.
+
+    Methods:
+        get_default_config(updates=None): Returns the default configuration for a dataset, which can be customized with specific parameters.
+        load_dataset(config, tokenizer, **kwargs): Creates and returns an instance of a dataset based on the provided configuration and tokenizer.
+
+    Usage:
+        config = DatasetFactory.get_default_config({'type': 'huggingface'})
+        dataset = DatasetFactory.load_dataset(config, tokenizer)
+
+    Note:
+        DatasetFactory is a static class and should not be instantiated directly.
+    """
     @staticmethod
     def get_default_config(updates=None):
+
         config = ConfigDict()
         config.type = 'huggingface'
         config.text_processor = TextProcessor.get_default_config()
@@ -53,7 +68,23 @@ class DatasetFactory(object):
 
 
 class TextProcessor(object):
-    """ Example processor that converts a dictionary of texts into tokens. """
+        """
+    Processes text data by encoding strings into token IDs using a provided tokenizer.
+
+    This class supports adding special tokens (like BOS and EOS) and can process multiple fields from the data, concatenating them with a specified separator. It is designed to be flexible and customizable for different text processing needs.
+
+    Parameters:
+        config (ConfigDict): Configuration parameters for text processing.
+        tokenizer: The tokenizer instance used to encode text strings into token IDs.
+
+    Methods:
+        get_default_config(updates=None): Returns the default configuration for text processing.
+        __call__(example, has_aux=False, add_bos_token=True, add_eos_token=True): Processes a single example, returning token IDs and a corresponding loss mask.
+
+    Usage:
+        text_processor = TextProcessor(config, tokenizer)
+        tokens, loss_mask = text_processor(example)
+    """
     @staticmethod
     def get_default_config(updates=None):
         config = ConfigDict()
@@ -124,6 +155,23 @@ class TextProcessor(object):
 
 
 class VisionTextProcessor(object):
+    """
+    Designed for processing datasets that include both vision (image or video frames) and text data.
+
+    This class handles encoding of textual data and integrates special tokens indicating the start and end of vision-related tokens. It supports custom configurations for handling vision data, including specifying the number of tokens per frame and the maximum number of frames.
+
+    Parameters:
+        config (ConfigDict): Configuration parameters for vision-text processing.
+        tokenizer: The tokenizer instance used to encode text strings and vision tokens into token IDs.
+
+    Methods:
+        get_default_config(updates=None): Returns the default configuration for vision-text processing.
+        __call__(example, has_aux=False, add_bos_token=True, add_eos_token=True): Processes a single example, returning token IDs, a corresponding loss mask, and a vision mask.
+
+    Usage:
+        vision_text_processor = VisionTextProcessor(config, tokenizer)
+        tokens, loss_mask, vision_mask = vision_text_processor(example)
+    """
     @staticmethod
     def get_default_config(updates=None):
         config = ConfigDict()
@@ -240,10 +288,25 @@ class VisionTextProcessor(object):
 
 
 class HuggingfaceDataset(object):
-    """ Huggingface dataset, where the dataset is loaded using the huggingface
-        datasets.load_dataset() function.
     """
+    Loads and processes datasets from the Hugging Face datasets library.
 
+    This class can stream data, making it efficient for large datasets. The data is processed in chunks, with each chunk transformed into model input and target arrays, along with a loss mask to indicate which tokens should contribute to the loss calculation.
+
+    Parameters:
+        config (ConfigDict): Configuration parameters for the dataset.
+        tokenizer: The tokenizer instance used to encode text strings into token IDs.
+        text_processor (TextProcessor): The text processor instance used to preprocess text data.
+
+    Methods:
+        get_default_config(updates=None): Returns the default configuration for a HuggingfaceDataset.
+        __iter__(): Provides an iterator over batches of processed data.
+
+    Usage:
+        dataset = HuggingfaceDataset(config, tokenizer, text_processor)
+        for batch in dataset:
+            # Process the batch
+    """
     @staticmethod
     def get_default_config(updates=None):
         config = ConfigDict()
@@ -331,10 +394,26 @@ class HuggingfaceDataset(object):
 
 
 class JsonDataset(object):
-    """ JSON dataset, where each line of the data file contains a JSON
-        dictionary with text fields.
     """
+    Loads and processes datasets from newline-delimited JSON files.
 
+    Each line in the data file should contain a JSON object representing a data example. This class supports parallel processing to tokenize and encode the data efficiently across multiple CPU cores. Data examples are batched and padded as necessary to create fixed-size arrays suitable for model training.
+
+    Parameters:
+        config (ConfigDict): Configuration parameters for the dataset.
+        tokenizer: The tokenizer instance used to encode text strings into token IDs.
+        text_processor (TextProcessor): The text processor instance used to preprocess text data.
+        node_info (dict): Information about the distributed training nodes, if applicable.
+
+    Methods:
+        get_default_config(updates=None): Returns the default configuration for a JsonDataset.
+        __iter__(): Provides an iterator over batches of processed data.
+
+    Usage:
+        dataset = JsonDataset(config, tokenizer, text_processor, node_info)
+        for batch in dataset:
+            # Process the batch
+    """
     @staticmethod
     def get_default_config(updates=None):
         config = ConfigDict()
@@ -543,6 +622,26 @@ class JsonDataset(object):
 
 
 class JsonVisionDataset(object):
+    """
+    Similar to JsonDataset but specifically designed for datasets that include both vision and text data.
+
+    It can handle special tokens for vision data and supports different modes for padding or not padding the batches. This class is ideal for tasks that involve both visual and textual inputs, such as video captioning or multimodal language models.
+
+    Parameters:
+        config (ConfigDict): Configuration parameters for the dataset.
+        tokenizer: The tokenizer instance used to encode text strings and vision tokens into token IDs.
+        text_processor (VisionTextProcessor): The vision-text processor instance used to preprocess data.
+        node_info (dict): Information about the distributed training nodes, if applicable.
+
+    Methods:
+        get_default_config(updates=None): Returns the default configuration for a JsonVisionDataset.
+        __iter__(): Provides an iterator over batches of processed data, including vision masks.
+
+    Usage:
+        dataset = JsonVisionDataset(config, tokenizer, text_processor, node_info)
+        for batch in dataset:
+            # Process the batch
+    """
     @staticmethod
     def get_default_config(updates=None):
         config = ConfigDict()

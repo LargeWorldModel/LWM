@@ -410,6 +410,20 @@ def apply_rotary_emb(
 
 
 class FlaxLLaMAAttention(nn.Module):
+    """
+    Implements the attention mechanism for LLaMA models.
+
+    This module computes self-attention, given query, key, and value tensors. It supports causal (autoregressive) masking and rotary position embeddings.
+
+    Parameters:
+        config (LLaMAConfig): Configuration class instance for LLaMA.
+        dtype (jnp.dtype): The datatype of the computation (default: float32).
+        param_dtype (jnp.dtype): The datatype for the parameters (default: float32).
+        precision (Optional[Union[jax.lax.Precision, str]]): Numerical precision of the computation.
+
+    Methods:
+        __call__(hidden_states, attention_mask, segment_ids, position_ids, deterministic, init_cache, output_attentions, fcm_mask): Computes the attention scores and the attended value vectors.
+    """
     config: LLaMAConfig
     dtype: jnp.dtype=jnp.float32
     param_dtype: jnp.dtype=jnp.float32
@@ -657,6 +671,20 @@ class FlaxLLaMAAttention(nn.Module):
 
 
 class FlaxLLaMAMLP(nn.Module):
+    """
+    Implements the feed-forward network (MLP) used within each Transformer block of LLaMA models.
+
+    This module applies two linear transformations with a GELU activation in between.
+
+    Parameters:
+        config (LLaMAConfig): Configuration class instance for LLaMA.
+        dtype (jnp.dtype): The datatype of the computation (default: float32).
+        param_dtype (jnp.dtype): The datatype for the parameters (default: float32).
+        precision (Optional[Union[jax.lax.Precision, str]]): Numerical precision of the computation.
+
+    Methods:
+        __call__(x, deterministic): Applies the MLP transformation on input tensor `x`.
+    """
     config: LLaMAConfig
     dtype: jnp.dtype=jnp.float32
     param_dtype: jnp.dtype=jnp.float32
@@ -698,6 +726,27 @@ class FlaxLLaMAMLP(nn.Module):
 
 
 class FlaxLLaMABlock(nn.Module):
+    """
+    A Flax module representing a single Llama block, which is a core component of the
+    Llama architecture. This block typically consists of multi-head self-attention and
+    feed-forward neural network layers, with normalization and residual connections.
+
+    Attributes:
+        d_model (int): The dimensionality of the model's hidden layers.
+        num_heads (int): The number of heads in the multi-head attention mechanism.
+        d_ff (int): The dimensionality of the feed-forward layer.
+        dropout_rate (float): Dropout rate applied to the output of the attention and
+            feed-forward layers.
+        attention_dropout_rate (float): Dropout rate applied to the attention weights.
+        deterministic (bool): If True, the module will behave deterministically, not
+            applying dropout. Useful for inference.
+        kernel_init (Callable): Initialization function for the kernel weights.
+        bias_init (Callable): Initialization function for the bias.
+
+    Methods:
+        __call__: Applies the Llama block to the input data, including self-attention
+            and feed-forward layers, with appropriate normalization and residual connections.
+    """
     config: LLaMAConfig
     dtype: jnp.dtype=jnp.float32
     param_dtype: jnp.dtype=jnp.float32
@@ -792,8 +841,27 @@ class FlaxLLaMABlock(nn.Module):
 
 class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
     """
-    An abstract class to handle weights initialization and a simple interface for downloading and loading pretrained
-    models.
+    Base class for all Flax LLaMA models. Handles the loading and initialization of
+    pretrained LLaMA models and provides methods for weight initialization, setting up
+    cache for efficient decoding, and the forward pass of inputs through the model.
+
+    Inherits from FlaxPreTrainedModel which provides basic utilities and weight
+    management functionalities.
+
+    Attributes:
+        config_class (LLaMAConfig): The configuration class associated with LLaMA models.
+        base_model_prefix (str): A string prefix used to differentiate the base model's
+            parameters from other potential components like task-specific heads.
+        module_class (nn.Module): The Flax module associated with the LLaMA model, defined
+            in subclasses.
+
+    Args:
+        config (LLaMAConfig): Model configuration class instance.
+        input_shape (Tuple[int, int]): The shape of input data expected by the model.
+        seed (int): Random seed for initialization.
+        dtype (jnp.dtype): The datatype of the model's parameters.
+        _do_init (bool): Whether to initialize the model's weights.
+        **kwargs: Additional keyword arguments passed to the module class.
     """
 
     config_class = LLaMAConfig
@@ -813,6 +881,18 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
         super().__init__(config, module, input_shape=input_shape, seed=seed, dtype=dtype, _do_init=_do_init)
 
     def init_weights(self, rng: jax.random.PRNGKey, input_shape: Tuple, params: FrozenDict = None) -> FrozenDict:
+        """
+        Initializes the weights of the model. If `params` is provided, the missing keys
+        in the provided `params` dictionary are filled with random parameters.
+
+        Args:
+            rng (jax.random.PRNGKey): Random key used for parameter initialization.
+            input_shape (Tuple): The shape of the input for which the model is initialized.
+            params (FrozenDict, optional): Predefined model parameters.
+
+        Returns:
+            FrozenDict: A dictionary containing the initialized parameters of the model.
+        """
         # init input tensors
         input_ids = jnp.zeros(input_shape, dtype="i4")
         attention_mask = jnp.ones_like(input_ids)
@@ -851,12 +931,15 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
 
     def init_cache(self, batch_size, max_length):
         r"""
+        Initializes the cache used for fast auto-regressive decoding.
         Args:
             batch_size (`int`):
                 batch_size used for fast auto-regressive decoding. Defines the batch size of the initialized cache.
             max_length (`int`):
                 maximum possible length for auto-regressive decoding. Defines the sequence length of the initialized
                 cache.
+        Returns:
+            A dictionary representing the initialized cache.
         """
         # init input variables to retrieve cache
         input_ids = jnp.ones((batch_size, max_length))
@@ -884,6 +967,26 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
     ):
+        """
+        Runs the forward pass of the model.
+
+        Args:
+            input_ids: Indices of input sequence tokens in the vocabulary.
+            attention_mask (optional): Mask to avoid performing attention on padding token indices.
+            segment_ids (optional): Segment token indices to indicate first and second portions of the inputs.
+            position_ids (optional): Positional indices of input tokens.
+            params (dict, optional): Predefined model parameters.
+            past_key_values (dict, optional): Dictionary containing precomputed key and value hidden states.
+            dropout_rng (jax.random.PRNGKey, optional): JAX random key for dropout.
+            train (bool): Whether the model is in training mode.
+            output_attentions (bool, optional): Whether to output attention weights.
+            output_hidden_states (bool, optional): Whether to output hidden states.
+            return_dict (bool, optional): Whether to return a dictionary instead of a tuple.
+
+        Returns:
+            Model outputs, which could include logits, attentions, hidden states,
+            depending on the configuration and inputs.
+        """
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -944,6 +1047,24 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
 
 
 class FlaxLLaMABlockCollection(nn.Module):
+    """
+    This module represents a collection of LLaMA blocks, encapsulating the entire
+    transformer architecture. It supports operations like forward pass through all
+    the transformer blocks, enabling features like deterministic execution, caching
+    for fast decoding, and outputting attention and hidden states.
+
+    Attributes:
+        config (LLaMAConfig): Configuration object containing parameters for the LLaMA model.
+        dtype (jnp.dtype): Data type of the computation (default: jnp.float32).
+        param_dtype (jnp.dtype): Data type of the parameters (default: jnp.float32).
+        precision (Optional[Union[jax.lax.Precision, str]]): Numerical precision of the computation
+            to improve performance on certain devices. Default is None, using the highest available
+            precision.
+
+    Methods:
+        __call__: Executes a forward pass through the block collection with the given inputs and
+            configuration.
+    """
     config: LLaMAConfig
     dtype: jnp.dtype = jnp.float32
     param_dtype: jnp.dtype=jnp.float32
@@ -962,6 +1083,25 @@ class FlaxLLaMABlockCollection(nn.Module):
         output_hidden_states: bool = False,
         return_dict: bool = True,
     ):
+        """
+        Executes a forward pass through all the transformer blocks in the collection.
+
+        Args:
+            hidden_states: Input tensor to the transformer blocks.
+            attention_mask (optional): Mask to avoid performing attention on padding token indices.
+            segment_ids (optional): Segment token indices to indicate first and second portions of the inputs.
+            position_ids (optional): Positional indices of input tokens.
+            deterministic (bool): If True, the module will perform deterministically.
+            init_cache (bool): If True, initializes a cache for fast auto-regressive decoding.
+            output_attentions (bool): Whether to return attention weights.
+            output_hidden_states (bool): Whether to return hidden states.
+            return_dict (bool): Whether to return outputs in a dictionary.
+
+        Returns:
+            Tuple containing output hidden states, all hidden states (if `output_hidden_states` is True),
+            and all attentions (if `output_attentions` is True). If `return_dict` is True, these
+            are returned in a dictionary.
+        """
         all_attentions = () if output_attentions else None
         all_hidden_states = () if output_hidden_states else None
 
@@ -1034,6 +1174,24 @@ class FlaxLLaMABlockCollection(nn.Module):
 
 
 class FlaxLLaMAModule(nn.Module):
+    """
+    This module implements the core LLaMA model architecture, comprising embedding layers,
+    transformer blocks, and a final layer normalization. It supports features like dropout,
+    deterministic execution, and optional output of attention and hidden states.
+
+    Attributes:
+        config (LLaMAConfig): Configuration object containing parameters for the LLaMA model.
+        dtype (jnp.dtype): Data type of the computation (default: jnp.float32).
+        param_dtype (jnp.dtype): Data type of the parameters (default: jnp.float32).
+        precision (Optional[Union[jax.lax.Precision, str]]): Numerical precision of the computation
+            to improve performance on certain devices. Default is None, using the highest available
+            precision.
+
+    Methods:
+        setup: Initializes the module components including embedding layers, transformer blocks,
+            and layer normalization.
+        __call__: Executes a forward pass through the LLaMA model with the given inputs and configuration.
+    """
     config: LLaMAConfig
     dtype: jnp.dtype = jnp.float32
     param_dtype: jnp.dtype=jnp.float32
@@ -1101,9 +1259,34 @@ class FlaxLLaMAModule(nn.Module):
 
 @add_start_docstrings("", "")
 class FlaxLLaMAModel(FlaxLLaMAPreTrainedModel):
+    """
+    The FlaxLLaMAModel encapsulates the FlaxLLaMAModule to provide a convenient interface for
+    pre-trained LLaMA models. It handles weight initialization, offers a simple interface for downloading and
+    loading pre-trained models, and provides methods for forward passes using pre-trained weights.
+
+    Inherits from FlaxLLaMAPreTrainedModel to leverage pre-trained model utilities and conventions.
+
+    Attributes:
+        module_class: Points to the FlaxLLaMAModule which contains the actual model implementation.
+    """
     module_class = FlaxLLaMAModule
 
 class FlaxLLaMAForCausalLMModule(nn.Module):
+    """
+    This module is an extension of the FlaxLLaMAModule for causal language modeling tasks. It adds a language modeling
+    head on top of the transformer structure to generate logits for the next token prediction.
+
+    Attributes:
+        config (LLaMAConfig): Configuration class with all the parameters of the LLaMA model.
+        dtype (jnp.dtype): Data type for computation (default: jnp.float32).
+        param_dtype (jnp.dtype): Data type for parameters (default: jnp.float32).
+        precision (Optional[Union[jax.lax.Precision, str]]): Numerical precision for computation to improve performance
+            on certain devices. Defaults to None, using the highest precision available.
+
+    Methods:
+        setup: Initializes the transformer module and language modeling head.
+        __call__: Performs a forward pass through the transformer and language modeling head.
+    """
     config: LLaMAConfig
     dtype: jnp.dtype = jnp.float32
     param_dtype: jnp.dtype=jnp.float32
@@ -1132,6 +1315,24 @@ class FlaxLLaMAForCausalLMModule(nn.Module):
         output_hidden_states: bool = False,
         return_dict: bool = True,
     ):
+        """
+        Forward pass through the LLaMA transformer module and the language modeling head.
+
+        Args:
+            input_ids: Indices of input sequence tokens in the vocabulary.
+            attention_mask: Mask to avoid performing attention on padding token indices.
+            segment_ids: Token type IDs for segmenting inputs into different sequences.
+            position_ids: Position indices for input tokens.
+            deterministic (bool): If True, operations will be deterministic (suitable for inference).
+            init_cache (bool): If True, initializes a cache for fast auto-regressive decoding.
+            output_attentions (bool): Whether to return the attentions tensors of all attention layers.
+            output_hidden_states (bool): Whether to return the hidden states of all layers.
+            return_dict (bool): Whether to return a `FlaxCausalLMOutput` with named fields or a tuple.
+
+        Returns:
+            FlaxCausalLMOutput containing logits for the next token predictions, hidden states, and attentions if
+            requested.
+        """
         batch_size, seq_length = input_ids.shape
         if attention_mask is None:
             attention_mask = jnp.ones_like(input_ids)
@@ -1170,12 +1371,32 @@ class FlaxLLaMAForCausalLMModule(nn.Module):
 
 @add_start_docstrings("", "")
 class FlaxLLaMAForCausalLM(FlaxLLaMAPreTrainedModel):
+    """
+    This class provides a LLaMA model for causal language modeling tasks, wrapping the `FlaxLLaMAForCausalLMModule`.
+    It is designed to be used with pre-trained models and provides methods for generation tasks.
+
+    Inherits from FlaxLLaMAPreTrainedModel to utilize utilities for pre-trained models.
+
+    Attributes:
+        module_class: Points to the FlaxLLaMAForCausalLMModule containing the actual model implementation.
+    """
     module_class = FlaxLLaMAForCausalLMModule
 
     def prepare_inputs_for_generation(
         self, input_ids, max_length,
         attention_mask: Optional[jax.Array] = None,
     ):
+        """
+        Prepares inputs for generation with an auto-regressive causal language model.
+
+        Args:
+            input_ids: Indices of input sequence tokens in the vocabulary.
+            max_length: Maximum length of the sequence to be generated.
+            attention_mask (Optional[jax.Array]): Mask to avoid performing attention on padding token indices.
+
+        Returns:
+            A dictionary containing the prepared inputs necessary for generation.
+        """
         # initializing the cache
         batch_size, seq_length = input_ids.shape
 
@@ -1206,10 +1427,20 @@ PRETRAINED_VOCAB_FILES_MAP = {}
 
 class LLaMATokenizer(PreTrainedTokenizer):
     """
-    Construct a LLaMA tokenizer. Based on byte-level Byte-Pair-Encoding.
+    Constructs a LLaMA tokenizer, which is based on byte-level Byte-Pair-Encoding (BPE). This tokenizer is responsible
+    for turning input text into tokens that can be processed by the LLaMA model.
+
     Args:
-        vocab_file (`str`):
-            Path to the vocabulary file.
+        vocab_file (str): Path to the file containing the vocabulary, which defines the mapping between tokens and their IDs.
+        unk_token (str, optional): The token to use for unknown tokens. Defaults to "<unk>".
+        bos_token (str, optional): The token to use for the beginning of sequence. Defaults to "<s>".
+        eos_token (str, optional): The token to use for the end of sequence. Defaults to "</s>".
+        sp_model_kwargs (Optional[Dict[str, Any]], optional): Additional keyword arguments for the SentencePiece processor.
+        add_bos_token (bool, optional): Whether to add the beginning of sequence token at the start of each sequence. Defaults to False.
+        add_eos_token (bool, optional): Whether to add the end of sequence token at the end of each sequence. Defaults to False.
+
+    This tokenizer integrates with the PreTrainedTokenizer base class from Hugging Face's transformers library, providing
+    compatibility with a wide range of pre-trained models and utilities for text processing.
     """
 
     vocab_files_names = VOCAB_FILES_NAMES
@@ -1227,6 +1458,9 @@ class LLaMATokenizer(PreTrainedTokenizer):
         add_eos_token=False,
         **kwargs,
     ):
+        """
+        Initializes the tokenizer with the given vocabulary file and special token settings.
+        """
         self.sp_model_kwargs = {} if sp_model_kwargs is None else sp_model_kwargs
         super().__init__(bos_token=bos_token, eos_token=eos_token, unk_token=unk_token, **kwargs)
         self.vocab_file = vocab_file
@@ -1250,38 +1484,55 @@ class LLaMATokenizer(PreTrainedTokenizer):
 
     @property
     def vocab_size(self):
-        """Returns vocab size"""
+        """
+        Returns the size of the vocabulary, i.e., the number of unique tokens.
+        """
         return self.sp_model.get_piece_size()
 
     @property
     def bos_token_id(self) -> Optional[int]:
+        """
+        Returns the ID of the beginning of sequence token.
+        """
         return self.sp_model.bos_id()
 
     @property
     def eos_token_id(self) -> Optional[int]:
+        """
+        Returns the ID of the end of sequence token.
+        """
         return self.sp_model.eos_id()
 
     def get_vocab(self):
-        """Returns vocab as a dict"""
+        """
+        Returns the vocabulary as a dictionary mapping tokens to their corresponding IDs in a dict"""
         vocab = {self.convert_ids_to_tokens(i): i for i in range(self.vocab_size)}
         vocab.update(self.added_tokens_encoder)
         return vocab
 
     def _tokenize(self, text):
-        """Returns a tokenized string."""
+        """
+        Tokenizes a text string into a list of tokens.
+        """
         return self.sp_model.encode(text, out_type=str)
 
     def _convert_token_to_id(self, token):
-        """Converts a token (str) in an id using the vocab."""
+        """
+        Converts a token (string) to its corresponding ID using the vocabulary.
+        """
         return self.sp_model.piece_to_id(token)
 
     def _convert_id_to_token(self, index):
-        """Converts an index (integer) in a token (str) using the vocab."""
+        """
+        Converts an ID (integer) to its corresponding token (string) using the vocabulary.
+        """
         token = self.sp_model.IdToPiece(index)
         return token
 
     def convert_tokens_to_string(self, tokens):
-        """Converts a sequence of tokens (string) in a single string."""
+        """
+        Converts a sequence of tokens (list of strings) back to a single string.
+        """
         current_sub_tokens = []
         out_string = ""
         prev_is_special = False
@@ -1301,12 +1552,14 @@ class LLaMATokenizer(PreTrainedTokenizer):
 
     def save_vocabulary(self, save_directory, filename_prefix: Optional[str] = None) -> Tuple[str]:
         """
-        Save the vocabulary and special tokens file to a directory.
+        Saves the vocabulary and special tokens file to the specified directory.
+
         Args:
-            save_directory (`str`):
-                The directory in which to save the vocabulary.
+            save_directory (str): The directory where the vocabulary will be saved.
+            filename_prefix (Optional[str], optional): A prefix to add to the saved filename.
+
         Returns:
-            `Tuple(str)`: Paths to the files saved.
+            Tuple[str]: The path(s) to the saved vocabulary file(s).
         """
         if not os.path.isdir(save_directory):
             logger.error(f"Vocabulary path ({save_directory}) should be a directory")
@@ -1326,6 +1579,16 @@ class LLaMATokenizer(PreTrainedTokenizer):
 
     def build_inputs_with_special_tokens(self, token_ids_0, token_ids_1=None):
         if self.add_bos_token:
+        """
+        Builds model inputs from sequences with special tokens added for sequence classification tasks.
+
+        Args:
+            token_ids_0 (List[int]): The list of token IDs for the first sequence.
+            token_ids_1 (Optional[List[int]], optional): The list of token IDs for the second sequence, if applicable.
+
+        Returns:
+            List[int]: The combined list of token IDs with special tokens added.
+        """
             bos_token_ids = [self.bos_token_id]
         else:
             bos_token_ids = []

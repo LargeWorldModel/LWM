@@ -18,6 +18,26 @@ from typing import Any, NamedTuple
 
 
 def _ring_attention_fwd(q, k, v, attn_bias, segment_ids, axis_name, float32_logits, blockwise_kwargs):
+    """
+    Computes the forward pass of the ring attention mechanism in a blockwise fashion.
+    This function divides the computation into blocks to reduce memory consumption and
+    leverages a ring structure for efficient data sharing across TPU cores. It supports
+    both standard and float32 precision for logits.
+
+    Args:
+        q (jax.Array): Query tensor of shape (batch, q_len, num_heads, dim_per_head).
+        k (jax.Array): Key tensor of shape (batch, kv_len, num_heads, dim_per_head).
+        v (jax.Array): Value tensor of shape (batch, kv_len, num_heads, dim_per_head).
+        attn_bias (jax.Array): Attention bias to be added to the computed attention scores.
+        segment_ids (jax.Array): Segment IDs for segment-based masking in attention.
+        axis_name: Axis name for pmap to perform cross-device computation.
+        float32_logits (bool): Flag to use float32 precision for computing logits.
+        blockwise_kwargs (dict): Dictionary containing blockwise computation settings.
+
+    Returns:
+        output (jax.Array): The output of the attention mechanism.
+        cache (tuple): A tuple containing tensors that will be used for backward pass.
+    """
     if float32_logits:
         q, k = q.astype(jnp.float32), k.astype(jnp.float32)
     batch, q_len, num_heads, dim_per_head = q.shape
@@ -45,6 +65,21 @@ def _ring_attention_fwd(q, k, v, attn_bias, segment_ids, axis_name, float32_logi
     return output.astype(v.dtype), (output, q, k, v, attn_bias, segment_ids, denominator, max_score)
 
 def _ring_attention_bwd(axis_name, float32_logits, blockwise_kwargs, res, g):
+    """
+    Computes the backward pass for the ring attention mechanism. This function is designed
+    to work in tandem with the forward pass, using the cached results from the forward pass
+    to efficiently compute gradients with respect to the inputs.
+
+    Args:
+        axis_name: Axis name for pmap to perform cross-device gradient computation.
+        float32_logits (bool): Indicates if float32 precision was used for logits.
+        blockwise_kwargs (dict): Settings for blockwise computation used in the forward pass.
+        res (tuple): Cached results from the forward pass.
+        g (jax.Array): Gradient with respect to the output of the attention mechanism.
+
+    Returns:
+        Gradients with respect to the inputs of the attention mechanism.
+    """
     del float32_logits
     output, q, k, v, attn_bias, segment_ids, denominator, max_score = res
     batch, q_len, num_heads, dim_per_head = q.shape
@@ -145,6 +180,13 @@ ring_attention_standard.defvjp(_ring_attention_standard_fwd, _ring_attention_sta
 
 def _blockwise_attention_fwd(q, k, v, carry, q_chunk_idx_start, k_chunk_idx_start, bias, segment_ids, causal, query_chunk_size,
                              key_chunk_size, deterministic, dropout_rng, attn_pdrop, dtype, policy, precision, prevent_cse):
+    """
+    Forward pass for the blockwise computation within the attention mechanism. This function
+    handles the computation within a single block, applying the attention mechanism to smaller
+    portions of the input tensors to optimize memory usage.
+
+    [Additional parameters and return values documentation specific to the function]
+    """
     batch, q_len, num_heads, dim_per_head = q.shape
     batch, kv_len, num_heads, dim_per_head = k.shape
     batch, kv_len, num_heads, dim_per_head = v.shape
@@ -220,6 +262,13 @@ def _blockwise_attention_fwd(q, k, v, carry, q_chunk_idx_start, k_chunk_idx_star
     return numerator, denominator, max_score
 
 def _blockwise_attention_bwd(q, k, v, g, carry, q_chunk_idx_start, k_chunk_idx_start, bias, segment_ids, causal, query_chunk_size, key_chunk_size, deterministic, dropout_rng, attn_pdrop, dtype, policy, precision, prevent_cse):
+    """
+    Backward pass for the blockwise computation within the attention mechanism. This function
+    computes gradients for the blockwise attention forward pass, using the results cached during
+    the forward computation to efficiently compute gradients with respect to the block inputs.
+
+    [Additional parameters and return values documentation specific to the function]
+    """
     batch, q_len, num_heads, dim_per_head = q.shape
     batch, kv_len, num_heads, dim_per_head = k.shape
     batch, kv_len, num_heads, dim_per_head = v.shape
@@ -537,17 +586,16 @@ NUM_LANES = 128
 NUM_SUBLANES = 8
 
 class SegmentIds(NamedTuple):
-    """SegmentIds for Q and KV sequences.
-
-    SegmentIds are used to generate segment mask, which prevents attention between
-    different segments in the input sequence. Each array is a list of ids
-    (integers).
-    Only the token with the same id can attend to each other.
+    """
+    Named tuple for segment IDs used in segment-based masking within the attention mechanism.
+    Segment IDs allow different parts of the input sequence to be treated as separate segments,
+    preventing attention across segments.
 
     Attributes:
-      q: segment ids along the Q sequence.
-      kv: segment ids along the KV sequence.
+        q (jax.Array): Segment IDs for the query sequences.
+        kv (jax.Array): Segment IDs for the key/value sequences.
     """
+
 
     q: jax.Array  # [q_seq_len]
     kv: jax.Array  # [kv_seq_len]
@@ -555,6 +603,14 @@ class SegmentIds(NamedTuple):
 
 @dataclasses.dataclass(frozen=True)
 class BlockSizes:
+    """
+    Class to represent sizes of blocks used in blockwise computation of the attention mechanism.
+    This class helps in configuring the dimensions for dividing the input tensors into smaller blocks,
+    optimizing the computation for memory efficiency and parallelism.
+
+    Attributes are configured to represent the size of blocks along different dimensions such as
+    queries, keys, values, and their corresponding major blocks for handling larger sequences.
+    """
     block_q: int
     block_k_major: int
     block_k: int

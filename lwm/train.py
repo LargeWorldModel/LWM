@@ -55,6 +55,36 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
 
 
 def main(argv):
+    """
+    Performs a single training step, including forward pass, loss calculation, and parameter update.
+
+    This function handles the training logic for different data modalities (e.g., text, vision+text) and applies the model to the input batch. It computes the loss and accuracy, performs backpropagation to calculate gradients, and updates the model parameters using the provided optimizer.
+
+    Inputs:
+        train_state: TrainState object
+            The current training state containing the model parameters, optimizer state, and other training-related information. It must be compatible with the model being trained and the optimizer in use.
+        
+        rng: JaxRNG object
+            A random number generator state used for stochastic operations within the model, such as dropout. It is crucial for reproducibility and controlled randomness in the training process.
+        
+        batch: dict
+            A batch of data to be processed by the model. The structure of this dictionary depends on the modality of the data. For text data, it typically includes 'input_tokens', 'target_tokens', and 'loss_masks'. For vision+text data, it might also include 'input_vision_masks' and 'target_vision_masks'.
+
+    Process:
+        The function first applies sharding constraints to the batch data to ensure it's correctly partitioned for distributed training. It then defines a loss function that applies the model to the input data and computes the cross-entropy loss and accuracy. This loss function is differentiated to obtain gradients, which are then used to update the model parameters in the train state.
+
+    Outputs:
+        Tuple containing the updated TrainState, new RNG state, and a dictionary of metrics.
+        
+        updated_train_state: TrainState object
+            The updated training state after applying the gradients to the model parameters.
+        
+        new_rng: JaxRNG object
+            The updated random number generator state after being used in this training step.
+        
+        metrics: dict
+            A dictionary containing various training metrics calculated during this step, such as loss, accuracy, learning rate, parameter norms, and gradient norms. The structure of this dictionary may vary depending on the data modality and specific metrics being tracked.
+    """
     JaxDistributedConfig.initialize(FLAGS.jax_distributed)
     variant = tux.get_user_flags(FLAGS, FLAGS_DEF)
     flags_config_dict = tux.user_flags_to_config_dict(FLAGS, FLAGS_DEF)
