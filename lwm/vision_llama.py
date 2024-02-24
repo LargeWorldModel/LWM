@@ -297,7 +297,7 @@ class FlaxVideoLLaMAPreTrainedModel(FlaxPreTrainedModel):
 
         if attention_mask is None:
             attention_mask = jnp.ones((batch_size, sequence_length))
-        
+
         if segment_ids is None:
             segment_ids = jnp.zeros((batch_size, sequence_length))
 
@@ -308,7 +308,6 @@ class FlaxVideoLLaMAPreTrainedModel(FlaxPreTrainedModel):
 
         inputs = {"params": params or self.params}
 
-        # if past_key_values are passed then cache is already initialized a private flag init_cache has to be passed down to ensure cache is used. It has to be made sure that cache is marked as mutable so that it can be changed by FlaxGPTJAttention module
         if past_key_values:
             inputs["cache"] = past_key_values
             mutable = ["cache"]
@@ -342,7 +341,7 @@ class FlaxVideoLLaMAPreTrainedModel(FlaxPreTrainedModel):
 
         return outputs
 
-        
+
 class FlaxVideoLLaMAModule(nn.Module):
     config: VideoLLaMAConfig
     dtype: jnp.dtype = jnp.float32
@@ -527,7 +526,7 @@ class FlaxVideoLLaMAForCausalLMModule(nn.Module):
                 (batch_size, seq_length)
             )
 
-            
+
         outputs = self.transformer(
             input_ids,
             vision_masks,
@@ -616,9 +615,6 @@ class FlaxVideoLLaMAForCausalLM(FlaxVideoLLaMAPreTrainedModel):
         batch_size, seq_length = input_ids.shape
 
         past_key_values = self.init_cache(batch_size, max_length)
-        # Note that usually one would have to put 0's in the attention_mask for x > input_ids.shape[-1] and x < cache_length.
-        # But since GPTJ uses a causal mask, those positions are masked anyways.
-        # Thus we can create a single static attention_mask here, which is more efficient for compilation
         extended_attention_mask = jnp.ones((batch_size, max_length), dtype="i4")
         if attention_mask is not None:
             position_ids = attention_mask.cumsum(axis=-1) - 1

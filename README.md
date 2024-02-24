@@ -54,6 +54,9 @@ This work paves the way for training on massive datasets of long video and langu
 
 
 ## Setup
+
+This codebase is supported on Ubuntu and has not been tested on Windows or macOS. We recommend using TPUs for training and inference, although it is also possible to use GPUs. On TPU, the code is highly optimized with Jax's Pallas and can achieve high MFUs with RingAttention at very large context sizes. On GPU, the code is based on XLA and is not as optimized as it is for TPU.
+
 Install the requirements with:
 ```
 conda create -n lwm python=3.10
@@ -62,7 +65,7 @@ pip install -r requirements.txt
 ```
 or set up TPU VM with:
 ```
-sh tpu_requirements.sh
+sh tpu_vm_setup.sh
 ```
 
 
@@ -92,8 +95,8 @@ You can use `mesh_dim=dp, fsdp, tp, sp` to control the degree of parallelism and
 For example, `mesh_dim='1,64,4,1'` means 1 data parallelism, 64 fully sharded data parallelism, 4 tensor parallelism, and 1 sequence parallelism. `mesh_dim='1,1,4,64'` means 1 data parallelism, 1 fully sharded data parallelism, 4 tensor parallelism, and 64 sequence parallelism for RingAttention.
 
 
-## Command-line usage
-In this section, we provide instructions on how to run each of the provided scripts. For each script, you may need to fill in your own paths and values in the variables described in the beginning of each script.
+## Running Jax Models
+In this section, we provide instructions on how to run each of the provided scripts. For each script, you may need to fill in your own paths and values in the variables described in the beginning of each script. 
 
 To run each of the following scripts, use `bash <script_name>.sh`:
 - Language model training: `bash scripts/run_train_text.sh`
@@ -103,6 +106,57 @@ To run each of the following scripts, use `bash <script_name>.sh`:
 - Sampling images (Vision-Language Model): `bash scripts/run_sample_image.sh`
 - Sampling videos (Vision-LanguageModel): `bash scripts/run_sample_video.sh`
 - Image / Video understanding (Vision-Language Model): `bash scripts/run_vision_chat.sh`
+
+By default the `mesh_dim` argument puts all devices on `tp` (tensor parallelism). For longer sequences, you may want to include `sp`, which is the last dimension in the `mesh_dim`.
+
+When running needle evals, you may need to adjust the `theta` and `max_sequence_length` arguments in the scripts depending on the model. Below shows the correct values for each model.
+
+|                     | LWM-Text-128K /  LWM-Text-Chat-128K | LWM-Text-256K /  LWM-Text-Chat-256K | LWM-Text-512K / LWM-Text-Chat-512K | LWM-Text-1M / LWM-Text-Chat-1M |
+|---------------------|:-----------------------------------:|:-----------------------------------:|:----------------------------------:|:------------------------------:|
+| theta               |               10000000              |               10000000              |              25000000              |            50000000            |
+| max_sequence_length |                131072               |                262144               |               524288               |             1048576            |
+
+
+An example of filling out a script (`run_sample_video.sh`) is as follows
+```bash
+#! /bin/bash
+
+export SCRIPT_DIR="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+export PROJECT_DIR="$( cd -- "$( dirname -- "$SCRIPT_DIR" )" &> /dev/null && pwd )"
+cd $PROJECT_DIR
+export PYTHONPATH="$PYTHONPATH:$PROJECT_DIR"
+
+export llama_tokenizer_path="/path/to/ckpt/folder/tokenizer.model"
+export vqgan_checkpoint="/path/to/ckpt/folder/vqgan"
+export lwm_checkpoint="/path/to/ckpt/folder/params"
+
+python3 -u -m lwm.vision_generation \
+    --prompt='Fireworks over the city' \
+    --output_file='fireworks.mp4' \
+    --temperature_image=1.0 \
+    --temperature_video=1.0 \
+    --top_k_image=8192 \
+    --top_k_video=1000 \
+    --cfg_scale_image=5.0 \
+    --cfg_scale_video=1.0 \
+    --vqgan_checkpoint="$vqgan_checkpoint" \
+    --n_frames=8 \
+    --mesh_dim='!1,1,-1,1' \
+    --dtype='fp32' \
+    --load_llama_config='7b' \
+    --update_llama_config="dict(sample_mode='vision',theta=50000000,max_sequence_length=32768,use_flash_attention=True,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,scan_mlp=False,scan_mlp_chunk_size=8192,scan_layers=True)" \
+    --load_checkpoint="params::$lwm_checkpoint" \
+    --tokenizer.vocab_file="$llama_tokenizer_path"
+read
+```
+
+
+## Needle Haystack Data
+Run `python scripts/create_needle_data.py`
+
+
+## Running PyTorch Models
+Only text and text chat models are currently supported for PyTorch inference. PyTorch models can be loaded as Hugging Face `LlamaForCausalLM` models. Run `python scripts/sample_pyt.py` to sample. You may need to separately install `torch`. 
 
 
 ## If you have issues
@@ -139,4 +193,4 @@ If you use this codebase, or otherwise found our work valuable, please cite:
 
 ## License
 
-LWM's code and model weights are released under the Apache 2.0 License. See [LICENSE](https://github.com/LargeWorldModel/lwm/blob/main/LICENSE) for further details.
+LWM's code is released under the Apache 2.0 License. See [LICENSE](https://github.com/LargeWorldModel/lwm/blob/main/LICENSE) for further details. The models are released under the Llama-2 license.

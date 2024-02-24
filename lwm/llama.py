@@ -133,47 +133,6 @@ LLAMA_STANDARD_CONFIGS = {
 
 
 class LLaMAConfig(PretrainedConfig):
-    r"""
-    This is the configuration class to store the configuration of a [`~LLaMAModel`]. It is used to instantiate an LLaMA
-    model according to the specified arguments, defining the model architecture. Instantiating a configuration with the
-    defaults will yield a similar configuration to that of the LLaMA-7B.
-    Configuration objects inherit from [`PretrainedConfig`] and can be used to control the model outputs. Read the
-    documentation from [`PretrainedConfig`] for more information.
-    Args:
-        vocab_size (`int`, *optional*, defaults to 32000):
-            Vocabulary size of the LLaMA model. Defines the number of different tokens that can be represented by the
-            `inputs_ids` passed when calling [`~LLaMAModel`] or [`~TFLLaMAModel`].
-        hidden_size (`int`, *optional*, defaults to 4096):
-            Dimension of the hidden representations.
-        intermediate_size (`int`, *optional*, defaults to 11008):
-            Dimension of the MLP representations.
-        num_hidden_layers (`int`, *optional*, defaults to 32):
-            Number of hidden layers in the Transformer encoder.
-        num_attention_heads (`int`, *optional*, defaults to 32):
-            Number of attention heads for each attention layer in the Transformer encoder.
-        hidden_act (`str` or `function`, *optional*, defaults to `"silu"`):
-            The non-linear activation function (function or string) in the decoder.
-        max_sequence_length (`int`, *optional*, defaults to 2048):
-            Max sequence length for model (for RoPE computation)
-        initializer_range (`float`, *optional*, defaults to 0.02):
-            The standard deviation of the truncated_normal_initializer for initializing all weight matrices.
-        rms_norm_eps (`float`, *optional*, defaults to 1e-12):
-            The epsilon used by the rms normalization layers.
-        use_cache (`bool`, *optional*, defaults to `True`):
-            Whether or not the model should return the last key/values attentions (not used by all models). Only
-            relevant if `config.is_decoder=True`.
-        tie_word_embeddings(`bool`, *optional*, defaults to `False`):
-            Whether to tie weight embeddings
-        Example:
-    ```python
-    >>> from transformers import LLaMAModel, LLaMAConfig
-    >>> # Initializing a LLaMA llama-7b style configuration
-    >>> configuration = LLaMAConfig()
-    >>> # Initializing a model from the llama-7b style configuration
-    >>> model = LLaMAModel(configuration)
-    >>> # Accessing the model configuration
-    >>> configuration = model.config
-    ```"""
     model_type = "llama"
 
     def __init__(
@@ -184,7 +143,6 @@ class LLaMAConfig(PretrainedConfig):
         num_hidden_layers=32,
         num_attention_heads=32,
         max_sequence_length=4096,
-        orig_sequence_length=4096,
         rms_norm_eps=1e-6,
         initializer_range=0.02,
         use_cache=True,
@@ -202,8 +160,6 @@ class LLaMAConfig(PretrainedConfig):
         scan_query_chunk_size=1024,
         scan_key_chunk_size=1024,
         scan_mlp_chunk_size=1024,
-        fcm_min_ratio=0.0,
-        fcm_max_ratio=0.0,
         scan_layers=True,
         param_scan_axis=0,
         mesh_dim=None,
@@ -218,7 +174,6 @@ class LLaMAConfig(PretrainedConfig):
         self.num_hidden_layers = num_hidden_layers
         self.num_attention_heads = num_attention_heads
         self.max_sequence_length = max_sequence_length
-        self.orig_sequence_length = orig_sequence_length
         self.rms_norm_eps = rms_norm_eps
         self.use_cache = use_cache
         self.resid_pdrop = resid_pdrop
@@ -232,8 +187,6 @@ class LLaMAConfig(PretrainedConfig):
         self.scan_query_chunk_size = scan_query_chunk_size
         self.scan_key_chunk_size = scan_key_chunk_size
         self.scan_mlp_chunk_size = scan_mlp_chunk_size
-        self.fcm_min_ratio = fcm_min_ratio
-        self.fcm_max_ratio = fcm_max_ratio
         self.scan_layers = scan_layers
         self.param_scan_axis = param_scan_axis
         self.mesh_dim = mesh_dim
@@ -277,11 +230,7 @@ class LLaMAConfig(PretrainedConfig):
 
     @staticmethod
     def get_partition_rules(scan_layers=False, scan_axis=0):
-        """ Parition rules for GPTJ. Note that these rules are orderd, so that
-            the beginning rules match first. It is important to use
-            PartitionSpec() instead of None here because JAX does not treat
-            None as a pytree leaf.
-        """
+        """Parition rules are orderd, so that the beginning rules match first."""
         if scan_layers:
             if scan_axis == 0:
                 return (
@@ -346,7 +295,7 @@ class LLaMAConfig(PretrainedConfig):
     @staticmethod
     def get_weight_decay_exclusions():
         return tuple()
-        
+
     @staticmethod
     def get_frozen_param_exclusions(freeze_base):
         if freeze_base:
@@ -356,7 +305,7 @@ class LLaMAConfig(PretrainedConfig):
 
     @staticmethod
     def rng_keys():
-        return ('params', 'dropout', 'fcm')
+        return ('params', 'dropout')
 
     @staticmethod
     def get_tokenizer_config(updates=None):
@@ -538,11 +487,6 @@ class FlaxLLaMAAttention(nn.Module):
 
     @nn.compact
     def _concatenate_to_cache(self, key, value, query, attention_mask):
-        """
-        This function takes projected key, value states from a single input token and concatenates the states to cached
-        states from previous steps. This function is slighly adapted from the official Flax repository:
-        https://github.com/google/flax/blob/491ce18759622506588784b4fca0e4bf05f8c8cd/flax/linen/attention.py#L252
-        """
         # detect if we're initializing by absence of existing cache data.
         is_initialized = self.has_variable("cache", "cached_key")
         cached_key = self.variable("cache", "cached_key", jnp.zeros, key.shape, key.dtype)
@@ -572,9 +516,9 @@ class FlaxLLaMAAttention(nn.Module):
                 fn = shard_map(
                     fn, mesh=mesh,
                     in_specs=(
-                        PS(('dp', 'fsdp'), 'sp', 'tp', None), 
-                        PS(('dp', 'fsdp'), 'sp', 'tp', None), 
-                        PS(('dp', 'fsdp'), None, 'tp', None), 
+                        PS(('dp', 'fsdp'), 'sp', 'tp', None),
+                        PS(('dp', 'fsdp'), 'sp', 'tp', None),
+                        PS(('dp', 'fsdp'), None, 'tp', None),
                         PS(('dp', 'fsdp'), None, 'tp', None),
                         PS()
                     ),
@@ -604,7 +548,6 @@ class FlaxLLaMAAttention(nn.Module):
         deterministic: bool = True,
         init_cache: bool = False,
         output_attentions: bool = False,
-        fcm_mask=None,
     ):
         xq, xk, xv = self.wq(hidden_states), self.wk(hidden_states), self.wv(hidden_states)
 
@@ -671,7 +614,7 @@ class FlaxLLaMAAttention(nn.Module):
                     PS(("dp", "fsdp"), "sp", "tp", None),
                     PS(("dp", "fsdp"), "sp", "tp", None),
                     PS(("dp", "fsdp"), None, None, None),
-                    PS(("dp", "fsdp"), None), 
+                    PS(("dp", "fsdp"), None),
                 ),
                 out_specs=PS(("dp", "fsdp"), "sp", "tp", None),
                 check_rep=False
@@ -696,7 +639,7 @@ class FlaxLLaMAAttention(nn.Module):
             causal_mask = jnp.broadcast_to(causal_mask, (batch_size,) + causal_mask.shape[1:])
 
             attention_mask = jnp.broadcast_to(jnp.expand_dims(attention_mask, axis=(-3, -2)), causal_mask.shape)
-            attention_mask = combine_masks(attention_mask, causal_mask, fcm_mask, segment_mask)
+            attention_mask = combine_masks(attention_mask, causal_mask, segment_mask)
 
             # During fast autoregressive decoding, we feed one position at a time,
             # and cache the keys and values step by step.
@@ -859,7 +802,6 @@ class FlaxLLaMABlock(nn.Module):
         deterministic: bool = True,
         init_cache: bool = False,
         output_attentions: bool = False,
-        fcm_mask: Optional[jnp.ndarray] = None,
     ):
         attn_outputs = self.attention(
             self.attention_norm(hidden_states),
@@ -869,7 +811,6 @@ class FlaxLLaMABlock(nn.Module):
             deterministic,
             init_cache,
             output_attentions,
-            fcm_mask,
         )
         attn_output = attn_outputs[0]
         hidden_states = hidden_states + attn_output
@@ -892,7 +833,6 @@ class FlaxLLaMABlock(nn.Module):
 
         hidden_states = hidden_states + feed_forward_hidden_states
 
-        # return (hidden_states,) + attn_outputs[1:]
         outputs = hidden_states
         if self.config.scan_layers:
             outputs = (outputs, None)
@@ -1073,7 +1013,6 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
 
         inputs = {"params": params or self.params}
 
-        # if past_key_values are passed then cache is already initialized a private flag init_cache has to be passed down to ensure cache is used. It has to be made sure that cache is marked as mutable so that it can be changed by FlaxGPTJAttention module
         if past_key_values:
             inputs["cache"] = past_key_values
             mutable = ["cache"]
@@ -1166,23 +1105,6 @@ class FlaxLLaMABlockCollection(nn.Module):
         all_attentions = () if output_attentions else None
         all_hidden_states = () if output_hidden_states else None
 
-        if not deterministic and self.config.fcm_max_ratio > 0:
-            # Apply forgetful causal mask
-            batch_size, seq_length = hidden_states.shape[0], hidden_states.shape[1]
-            fcm_ratio = jax.random.uniform(
-                self.make_rng('fcm'), shape=(batch_size, 1, 1, 1),
-                minval=self.config.fcm_min_ratio,
-                maxval=self.config.fcm_max_ratio
-            )
-            fcm_mask = jax.random.uniform(
-                self.make_rng('fcm'),
-                shape=(batch_size, 1, seq_length, seq_length)
-            ) > fcm_ratio
-            fcm_mask = fcm_mask.at[:, :, :, 0].set(True)
-            fcm_mask = fcm_mask.astype('bool')
-        else:
-            fcm_mask = None
-
         block = FlaxLLaMABlock
         if self.config.remat_block != '':
             block = remat(
@@ -1207,7 +1129,7 @@ class FlaxLLaMABlockCollection(nn.Module):
                     'params': True,
                     'dropout': True
                 },
-                in_axes=(nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast),
+                in_axes=(nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast, nn.broadcast),
                 length=self.config.num_hidden_layers,
                 metadata_params={nn.PARTITION_NAME: 'scan_decoder_layer'},
                 )(self.config, name='scan_decoder', dtype=self.dtype, param_dtype=self.param_dtype,)(
@@ -1218,7 +1140,6 @@ class FlaxLLaMABlockCollection(nn.Module):
                     deterministic,
                     init_cache,
                     output_attentions,
-                    fcm_mask,
                 )
         else:
             blocks = [
@@ -1241,14 +1162,12 @@ class FlaxLLaMABlockCollection(nn.Module):
                     deterministic,
                     init_cache,
                     output_attentions,
-                    fcm_mask,
                 )
                 hidden_states = layer_outputs
 
                 if output_attentions:
                     all_attentions += (layer_outputs[1],)
 
-        # this contains possible `None` values - `FlaxGPTJModule` will filter them out
         outputs = (hidden_states, all_hidden_states, all_attentions)
 
         return outputs
@@ -1464,8 +1383,8 @@ class FlaxLLaMAForCausalLM(FlaxLLaMAPreTrainedModel):
     module_class = FlaxLLaMAForCausalLMModule
 
     def prepare_inputs_for_generation(
-        self, input_ids, max_length, 
-        attention_mask: Optional[jax.Array] = None, 
+        self, input_ids, max_length,
+        attention_mask: Optional[jax.Array] = None,
     ):
         """
         Prepares inputs for generation with an auto-regressive causal language model.
@@ -1482,9 +1401,6 @@ class FlaxLLaMAForCausalLM(FlaxLLaMAPreTrainedModel):
         batch_size, seq_length = input_ids.shape
 
         past_key_values = self.init_cache(batch_size, max_length)
-        # Note that usually one would have to put 0's in the attention_mask for x > input_ids.shape[-1] and x < cache_length.
-        # But since GPTJ uses a causal mask, those positions are masked anyways.
-        # Thus we can create a single static attention_mask here, which is more efficient for compilation
         extended_attention_mask = jnp.ones((batch_size, max_length), dtype="i4")
         if attention_mask is not None:
             position_ids = attention_mask.cumsum(axis=-1) - 1

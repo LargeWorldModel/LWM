@@ -10,11 +10,15 @@ export vqgan_checkpoint=""
 export lwm_checkpoint=""
 export input_file=""
 
+# Relevant params
+# --input_file: A given image file (png or jpg) or video file (any video format support by decord, e.g. mp4)
+# --max_n_frames: Maximum number of frames to process. If the video is longer than max_n_frames frames, it uniformly samples max_n_frames frames from the video
+
 python3 -u -m lwm.vision_chat \
     --prompt="What is the video about?" \
     --input_file="$input_file" \
     --vqgan_checkpoint="$vqgan_checkpoint" \
-    --mesh_dim='!1,-1,32,1' \
+    --mesh_dim='!1,1,-1,1' \
     --dtype='fp32' \
     --load_llama_config='7b' \
     --max_n_frames=8 \
