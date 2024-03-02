@@ -29,7 +29,7 @@ python3 -u -m lwm.vision_generation \
     --mesh_dim='!1,1,-1,1' \
     --dtype='fp32' \
     --load_llama_config='7b' \
-    --update_llama_config="dict(sample_mode='vision',theta=50000000,max_sequence_length=32768,use_flash_attention=True,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,scan_mlp=False,scan_mlp_chunk_size=8192,scan_layers=True)" \
+    --update_llama_config="dict(sample_mode='vision',theta=50000000,max_sequence_length=32768,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,scan_mlp=False,scan_mlp_chunk_size=8192,scan_layers=True)" \
     --load_checkpoint="params::$lwm_checkpoint" \
     --tokenizer.vocab_file="$llama_tokenizer_path"
 read

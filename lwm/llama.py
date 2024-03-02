@@ -163,7 +163,6 @@ class LLaMAConfig(PretrainedConfig):
         scan_layers=True,
         param_scan_axis=0,
         mesh_dim=None,
-        use_flash_attention=True,
         theta=10000,
         **kwargs,
     ):
@@ -190,7 +189,6 @@ class LLaMAConfig(PretrainedConfig):
         self.scan_layers = scan_layers
         self.param_scan_axis = param_scan_axis
         self.mesh_dim = mesh_dim
-        self.use_flash_attention = use_flash_attention
         self.theta = theta
         super().__init__(
             bos_token_id=bos_token_id,
@@ -572,9 +570,11 @@ class FlaxLLaMAAttention(nn.Module):
             attn_weights = None
 
             platform = xla_bridge.get_backend().platform
-            if self.config.use_flash_attention and platform == "tpu":
+            if platform == "tpu":
+                logging.info(f"Using fused attention for {platform}")
                 ring_attention_fn = ring_flash_attention_tpu
             else:
+                logging.info(f"Fused attention is not yet supported for {platform}, using non-fused version")
                 ring_attention_fn = ring_attention # uses BPT attention
             ring_attention_sharded = shard_map(
                 partial(

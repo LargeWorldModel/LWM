@@ -41,7 +41,7 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
     checkpointer=StreamingCheckpointer.get_default_config(),
     llama=LLaMAConfig.get_default_config(),
     jax_distributed=JaxDistributedConfig.get_default_config(),
-) 
+)
 
 
 class LLMNeedleHaystackTester:
@@ -81,7 +81,7 @@ class LLMNeedleHaystackTester:
         self.needle = needle
         if not needle or not haystack_file or not retrieval_question:
             raise ValueError("Needle, haystack, and retrieval_question must be provided.")
-        
+
         self.rnd_number_digits = rnd_number_digits
         self.context_lengths_num_intervals = context_lengths_num_intervals
         self.document_depth_percent_intervals = document_depth_percent_intervals
@@ -182,7 +182,7 @@ class LLMNeedleHaystackTester:
 
             # We want to make sure that we place our needle at a sentence break so we first see what token a '.' is
             period_tokens = self.enc_tiktoken.encode('.')
-            
+
             # Then we iteration backwards until we find the first period
             while tokens_new_context and tokens_new_context[-1] not in period_tokens:
                 insertion_point -= 1
@@ -229,7 +229,7 @@ class LLMNeedleHaystackTester:
 
         full_contexts = self.read_context_files(FLAGS.n_rounds)
         full_tokens = [self.enc.encode(full_context) for full_context in tqdm(full_contexts)]
-        
+
         start = time.time()
         for context_length in self.context_lengths:
             trim_contexts = [self.enc.decode(full_token[:context_length]) for full_token in tqdm(full_tokens)]
@@ -290,7 +290,7 @@ class LLMNeedleHaystackTester:
             pbar.close()
         print('elapsed', time.time() - start)
         print('done')
-                
+
 
     def print_start_test_summary(self):
         print ("\n")
@@ -304,7 +304,7 @@ class LLMNeedleHaystackTester:
         if self.print_ongoing_status:
             self.print_start_test_summary()
         self.run_test()
-    
+
 
 
 class Sampler:
@@ -321,7 +321,7 @@ class Sampler:
     def block_size(self):
         # return 2 * max(self.config.scan_query_chunk_size, self.config.scan_key_chunk_size)
         return max(self.config.scan_query_chunk_size, self.config.scan_key_chunk_size) * self.mesh.shape['sp']
-    
+
     @property
     def data_dim(self):
         return self.mesh.shape['dp'] * self.mesh.shape['fsdp']
@@ -354,16 +354,15 @@ class Sampler:
         ))
         llama_config.update(dict(mesh_dim=FLAGS.mesh_dim))
         self.config = llama_config
-        assert not self.config.use_flash_attention, f"Flash attention is not supported for inference"
 
         with jax.default_device(jax.devices("cpu")[0]):
             _, self.params = StreamingCheckpointer.load_trainstate_checkpoint(
                     FLAGS.load_checkpoint, disallow_trainstate=True, max_buffer_size=32 * 2 ** 30
             )
             self.model = FlaxLLaMAForCausalLM(
-                llama_config, 
-                input_shape=(512, self.block_size), 
-                seed=FLAGS.seed, 
+                llama_config,
+                input_shape=(512, self.block_size),
+                seed=FLAGS.seed,
                 _do_init=False,
                 dtype=get_float_dtype_by_name(FLAGS.dtype),
             )
@@ -428,11 +427,11 @@ class Sampler:
                 text = text.split(self.tokenizer.eos_token, maxsplit=1)[0]
             output_text.append(text)
         return output_text
-        
+
 
 def main(argv):
     JaxDistributedConfig.initialize(FLAGS.jax_distributed)
-    set_random_seed(FLAGS.seed) 
+    set_random_seed(FLAGS.seed)
 
     ht = LLMNeedleHaystackTester(
         haystack_file=FLAGS.haystack_file,

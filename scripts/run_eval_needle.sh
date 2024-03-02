@@ -16,7 +16,7 @@ python3 -u scripts/eval_needle.py \
     --mesh_dim='!1,-1,4,1' \
     --dtype='fp32' \
     --load_llama_config='7b' \
-    --update_llama_config="dict(theta=10000000,max_sequence_length=131072,use_flash_attention=False,scan_attention=True,scan_query_chunk_size=1024,scan_key_chunk_size=1024,scan_mlp=True,scan_mlp_chunk_size=1024,scan_layers=True)" \
+    --update_llama_config="dict(theta=10000000,max_sequence_length=131072,scan_attention=True,scan_query_chunk_size=1024,scan_key_chunk_size=1024,scan_mlp=True,scan_mlp_chunk_size=1024,scan_layers=True)" \
     --load_checkpoint="params::$lwm_text_checkpoint" \
     --tokenizer.vocab_file="$llama_tokenizer_path" \
     --max_tokens_per_batch=5000 \

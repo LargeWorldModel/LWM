@@ -22,7 +22,7 @@ python3 -u -m lwm.vision_chat \
     --dtype='fp32' \
     --load_llama_config='7b' \
     --max_n_frames=8 \
-    --update_llama_config="dict(sample_mode='text',theta=50000000,max_sequence_length=131072,use_flash_attention=False,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,remat_attention='',scan_mlp=False,scan_mlp_chunk_size=2048,remat_mlp='',remat_block='',scan_layers=True)" \
+    --update_llama_config="dict(sample_mode='text',theta=50000000,max_sequence_length=131072,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,remat_attention='',scan_mlp=False,scan_mlp_chunk_size=2048,remat_mlp='',remat_block='',scan_layers=True)" \
     --load_checkpoint="params::$lwm_checkpoint" \
     --tokenizer.vocab_file="$llama_tokenizer_path" \
 2>&1 | tee ~/output.log

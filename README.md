@@ -96,7 +96,7 @@ For example, `mesh_dim='1,64,4,1'` means 1 data parallelism, 64 fully sharded da
 
 
 ## Running Jax Models
-In this section, we provide instructions on how to run each of the provided scripts. For each script, you may need to fill in your own paths and values in the variables described in the beginning of each script. 
+In this section, we provide instructions on how to run each of the provided scripts. For each script, you may need to fill in your own paths and values in the variables described in the beginning of each script.
 
 To run each of the following scripts, use `bash <script_name>.sh`:
 - Language model training: `bash scripts/run_train_text.sh`
@@ -144,7 +144,7 @@ python3 -u -m lwm.vision_generation \
     --mesh_dim='!1,1,-1,1' \
     --dtype='fp32' \
     --load_llama_config='7b' \
-    --update_llama_config="dict(sample_mode='vision',theta=50000000,max_sequence_length=32768,use_flash_attention=True,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,scan_mlp=False,scan_mlp_chunk_size=8192,scan_layers=True)" \
+    --update_llama_config="dict(sample_mode='vision',theta=50000000,max_sequence_length=32768,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,scan_mlp=False,scan_mlp_chunk_size=8192,scan_layers=True)" \
     --load_checkpoint="params::$lwm_checkpoint" \
     --tokenizer.vocab_file="$llama_tokenizer_path"
 read
@@ -156,7 +156,12 @@ Run `python scripts/create_needle_data.py`
 
 
 ## Running PyTorch Models
-Only text and text chat models are currently supported for PyTorch inference. PyTorch models can be loaded as Hugging Face `LlamaForCausalLM` models. Run `python scripts/sample_pyt.py` to sample. You may need to separately install `torch`. 
+Only text and text chat models are currently supported for PyTorch inference. PyTorch models can be loaded as Hugging Face `LlamaForCausalLM` models. Run `python scripts/sample_pyt.py` to sample. You may need to separately install `torch`.
+
+## Documentation
+
+For more details on the codebase, please refer to the [data.md](docs/data.md) and [sharding.md](docs/sharding.md).
+The [data.md](docs/data.md) provides details on the data processing and the [sharding.md](docs/sharding.md) provides details on the sharding and parallelism.
 
 
 ## If you have issues
