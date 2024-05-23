@@ -1138,10 +1138,7 @@ class FlaxLLaMAForCausalLMModule(nn.Module):
         if segment_ids is None:
             segment_ids = jnp.zeros_like(input_ids)
         if position_ids is None:
-            position_ids = jnp.broadcast_to(
-                jnp.clip(jnp.cumsum(attention_mask, axis=-1) - 1, a_min=0),
-                (batch_size, seq_length)
-            )
+            position_ids = jnp.arange(seq_length, dtype=jnp.int32)[None].repeat(batch_size, axis=0)
         outputs = self.transformer(
             input_ids,
             attention_mask,
@@ -1182,10 +1179,8 @@ class FlaxLLaMAForCausalLM(FlaxLLaMAPreTrainedModel):
         past_key_values = self.init_cache(batch_size, max_length)
         extended_attention_mask = jnp.ones((batch_size, max_length), dtype="i4")
         if attention_mask is not None:
-            position_ids = attention_mask.cumsum(axis=-1) - 1
             extended_attention_mask = lax.dynamic_update_slice(extended_attention_mask, attention_mask, (0, 0))
-        else:
-            position_ids = jnp.broadcast_to(jnp.arange(seq_length, dtype="i4")[None, :], (batch_size, seq_length))
+        position_ids = jnp.broadcast_to(jnp.arange(seq_length, dtype="i4")[None, :], (batch_size, seq_length))
 
         return {
             "past_key_values": past_key_values,
