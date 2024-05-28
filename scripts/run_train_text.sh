@@ -24,7 +24,7 @@ python3 -u -m lwm.train \
     --save_model_freq=0 \
     --save_milestone_freq=10 \
     --load_llama_config='debug' \
-    --update_llama_config="dict(theta=10000,max_sequence_length=4096,scan_attention=True,scan_query_chunk_size=512,scan_key_chunk_size=1024,remat_attention='nothing_saveable',scan_mlp=True,scan_mlp_chunk_size=8192,remat_mlp='nothing_saveable',remat_block='nothing_saveable',scan_layers=True)" \
+    --update_llama_config="dict(theta=10000,max_sequence_length=2048,scan_attention=True,scan_query_chunk_size=256,scan_key_chunk_size=512,remat_attention='nothing_saveable',scan_mlp=True,scan_mlp_chunk_size=1024,remat_mlp='nothing_saveable',remat_block='nothing_saveable',scan_layers=True)" \
     --tokenizer.vocab_file="$llama_tokenizer_path" \
     --optimizer.type='adamw' \
     --optimizer.accumulate_gradient_steps=1 \
@@ -37,11 +37,9 @@ python3 -u -m lwm.train \
     --train_dataset.type='json' \
     --train_dataset.text_processor.fields='text' \
     --train_dataset.json_dataset.path="$dataset_path" \
-    --train_dataset.json_dataset.seq_length=1024  \
-    --train_dataset.json_dataset.batch_size=8 \
-    --train_dataset.json_dataset.tokenizer_processes=4 \
-    --train_dataset.json_dataset.tokenizer_parallel_chunk_size=2 \
-    --train_dataset.json_dataset.tokenizer_parallel_batch_size=8 \
+    --train_dataset.json_dataset.seq_length=2048 \
+    --train_dataset.json_dataset.batch_size=1024 \
+    --train_dataset.json_dataset.tokenizer_processes=16 \
     --train_dataset.json_dataset.use_data_sharded_loader=True \
     --checkpointer.save_optimizer_state=True \
     --autoresume=False \

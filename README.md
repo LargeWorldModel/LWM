@@ -60,12 +60,12 @@ This codebase is supported on Ubuntu and has not been tested on Windows or macOS
 Install the requirements with:
 ```
 conda create -n lwm python=3.10
-pip install -U "jax[cuda12_pip]==0.4.23" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
-pip install -r requirements.txt
+conda activate lwm
+pip install -r gpu_requirements.txt
 ```
 or set up TPU VM with:
 ```
-sh tpu_vm_setup.sh
+sh tpu_requirements.sh
 ```
 
 

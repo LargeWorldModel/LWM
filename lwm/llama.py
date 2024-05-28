@@ -571,11 +571,9 @@ class FlaxLLaMAAttention(nn.Module):
 
             platform = xla_bridge.get_backend().platform
             if platform == "tpu":
-                logging.info(f"Using fused attention for {platform}")
-                ring_attention_fn = ring_flash_attention_tpu
+                ring_attention_fn = ring_flash_attention_tpu # fused version for TPU
             else:
-                logging.info(f"Fused attention is not yet supported for {platform}, using non-fused version")
-                ring_attention_fn = ring_attention # uses BPT attention
+                ring_attention_fn = ring_attention # non-fused version for GPU
             ring_attention_sharded = shard_map(
                 partial(
                     ring_attention_fn,

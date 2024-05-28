@@ -1,54 +1,45 @@
 #! /bin/bash
 
-sudo umount /mnt/ramdisk
-sudo rm -rf /mnt/ramdisk
-sudo mkdir /mnt/ramdisk
-sudo mount -t tmpfs -o size=10G tmpfs /mnt/ramdisk
-
 sudo apt-get update && sudo apt-get install -y \
     build-essential \
     python-is-python3 \
     tmux \
     htop \
     git \
-    nodejs \
-    bmon \
-    p7zip-full \
-    nfs-common \
     ffmpeg
 
 # Update pip
 pip install --upgrade pip
 
-pip uninstall -y tux
-
 # Python dependencies
 cat > $HOME/tpu_requirements.txt <<- EndOfFile
 -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-jax[tpu]==0.4.23
-tensorflow-cpu==2.11.0
-tensorboard-plugin-profile
-flax==0.7.0
-optax==0.1.7
-chex==0.1.82
-einops
+jax[tpu]==0.4.28
+flax==0.8.4
+optax==0.2.2
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.0.0
-torchvision==0.15.0
 transformers==4.29.2
-datasets==2.13.0
+datasets==2.19.1
+einops
 tqdm
 ml_collections
 wandb
-requests
 gcsfs
+requests
 typing-extensions
 sentencepiece
 tux @ git+https://github.com/lhao499/tux.git
 Pillow
+ffmpeg-python
 ipdb
 imageio[ffmpeg]
-tiktoken
+opencv-python
+decord
+ffmpeg-python
+h5py
+psutil
+zerofun @ git+https://github.com/danijar/zerofun.git
 EndOfFile
 
 pip install --upgrade -r $HOME/tpu_requirements.txt

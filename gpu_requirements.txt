@@ -1,0 +1,27 @@
+-f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
+jax[cuda12_pip]==0.4.28
+flax==0.8.4
+optax==0.2.2
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.0.0
+transformers==4.29.2
+datasets==2.19.1
+einops
+tqdm
+ml_collections
+wandb
+gcsfs
+requests
+typing-extensions
+sentencepiece
+tux @ git+https://github.com/lhao499/tux.git
+Pillow
+ffmpeg-python
+ipdb
+imageio[ffmpeg]
+opencv-python
+decord
+ffmpeg-python
+h5py
+psutil
+zerofun @ git+https://github.com/danijar/zerofun.git
