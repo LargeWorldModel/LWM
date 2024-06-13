@@ -9,10 +9,12 @@ import absl.logging as logging
 import tux
 
 import jax
+import flax
 import jax.numpy as jnp
 from jax.experimental.pjit import pjit
 from jax.sharding import PartitionSpec as PS
 from flax.training.train_state import TrainState
+from transformers import AutoTokenizer
 
 from lwm.data import DatasetFactory
 from tux import (
@@ -41,7 +43,7 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
     save_model_freq=0,
     save_milestone_freq=0,
     eval_steps=0,
-    tokenizer=VideoLLaMAConfig.get_tokenizer_config(),
+    tokenizer='LargeWorldModel/LWM-Text-1M',
     train_dataset=DatasetFactory.get_default_config(),
     eval_dataset=DatasetFactory.get_default_config(),
     optimizer=OptimizerFactory.get_default_config(),
@@ -51,7 +53,7 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
     log_all_worker=False,
     jax_distributed=JaxDistributedConfig.get_default_config(),
     autoresume=False,
-) 
+)
 
 
 def main(argv):
@@ -83,7 +85,7 @@ def main(argv):
     mesh = config_cls.get_jax_mesh(FLAGS.mesh_dim)
     node_info = config_cls.get_ranks_and_size(mesh)
 
-    tokenizer = config_cls.get_tokenizer(FLAGS.tokenizer)
+    tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer)
     dataset = DatasetFactory.load_dataset(FLAGS.train_dataset, tokenizer, node_info=node_info)
     if FLAGS.autoresume and tux.check_exists(output_dir):
         logging.info('Found existing output. Resuming dataset from latest checkpoint...')
@@ -170,13 +172,13 @@ def main(argv):
         def loss_and_accuracy(params):
             if FLAGS.modality == 'text':
                 logits = model.apply(
-                    params, 
-                    batch['input_tokens'], 
+                    params,
+                    batch['input_tokens'],
                     deterministic=False,
                     rngs=rng_generator(llama_config.rng_keys()),
                 ).logits
                 loss, acc = cross_entropy_loss_and_accuracy(
-                    logits, 
+                    logits,
                     batch['target_tokens'],
                     batch['loss_masks']
                 )
@@ -184,24 +186,24 @@ def main(argv):
                 return loss, metrics
             elif FLAGS.modality == 'vision,text':
                 vision_logits, text_logits = model.apply(
-                    params, 
-                    batch['input_tokens'], 
+                    params,
+                    batch['input_tokens'],
                     batch['input_vision_masks'],
                     deterministic=False,
                     rngs=rng_generator(llama_config.rng_keys()),
                 ).logits
                 vision_loss, vision_acc = cross_entropy_loss_and_accuracy(
-                    vision_logits, 
+                    vision_logits,
                     jnp.where(batch['target_vision_masks'], batch['target_tokens'], 0),
                     batch['loss_masks'] * batch['target_vision_masks']
                 )
                 text_loss, text_acc = cross_entropy_loss_and_accuracy(
-                    text_logits, 
+                    text_logits,
                     jnp.where(batch['target_vision_masks'], 0, batch['target_tokens']),
                     batch['loss_masks'] * (1.0 - batch['target_vision_masks'])
                 )
                 loss = 0.5 * (vision_loss + text_loss)
-                
+
                 metrics = dict(
                     vision_loss=vision_loss,
                     vision_acc=vision_acc,
@@ -210,7 +212,7 @@ def main(argv):
                 )
             else:
                 raise ValueError(f"Unsupported modality: {FLAGS.modality}")
-            return loss, metrics 
+            return loss, metrics
         grad_fn = jax.value_and_grad(loss_and_accuracy, has_aux=True)
         (loss, loss_metrics), grads = grad_fn(train_state.params)
         train_state = train_state.apply_gradients(grads=grads)
@@ -228,13 +230,13 @@ def main(argv):
         batch = with_sharding_constraint(batch, PS(('dp', 'fsdp'), 'sp'))
         if FLAGS.modality == 'text':
             logits = model.apply(
-                train_state.params, 
-                batch['input_tokens'], 
+                train_state.params,
+                batch['input_tokens'],
                 deterministic=True,
                 rngs=rng_generator(llama_config.rng_keys()),
             ).logits
             loss, acc = cross_entropy_loss_and_accuracy(
-                logits, 
+                logits,
                 batch['target_tokens'],
                 batch['loss_masks']
             )
@@ -244,19 +246,19 @@ def main(argv):
             )
         elif FLAGS.modality == 'vision,text':
             vision_logits, text_logits = model.apply(
-                train_state.params, 
-                batch['input_tokens'], 
+                train_state.params,
+                batch['input_tokens'],
                 batch['input_vision_masks'],
                 deterministic=True,
                 rngs=rng_generator(llama_config.rng_keys()),
             ).logits
             vision_loss, vision_acc = cross_entropy_loss_and_accuracy(
-                vision_logits, 
+                vision_logits,
                 jnp.where(batch['target_vision_masks'], batch['target_tokens'], 0),
                 batch['loss_masks'] * batch['target_vision_masks']
             )
             text_loss, text_acc = cross_entropy_loss_and_accuracy(
-                text_logits, 
+                text_logits,
                 jnp.where(batch['target_vision_masks'], 0, batch['target_tokens']),
                 batch['loss_masks'] * (1.0 - batch['target_vision_masks'])
             )
@@ -349,7 +351,7 @@ def main(argv):
             train_state = sharded_init_fn(next_rng())
         elif train_state is None and restored_params is not None:
             # Restore from params but initialize train_state
-            train_state = sharded_create_trainstate_from_params(restored_params)
+            train_state = sharded_create_trainstate_from_params(flax.core.unfreeze(restored_params))
             del restored_params
 
         start_step = int(jax.device_get(train_state.step))
@@ -362,7 +364,7 @@ def main(argv):
         step_counter = trange(start_step, FLAGS.total_steps, ncols=0)
         for step, (batch, dataset_metrics) in zip(step_counter, dataset):
             train_state, sharded_rng, metrics = sharded_train_step(
-                train_state, sharded_rng, batch 
+                train_state, sharded_rng, batch
             )
             if step % FLAGS.log_freq == 0:
                 if FLAGS.eval_steps > 0:

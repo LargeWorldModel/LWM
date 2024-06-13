@@ -8,7 +8,7 @@ import numpy as np
 import jax
 from jax.experimental.pjit import pjit
 from jax.sharding import PartitionSpec as PS
-from transformers import GenerationConfig
+from transformers import GenerationConfig, AutoTokenizer
 from tux import (
     define_flags_with_default, StreamingCheckpointer, JaxDistributedConfig,
     set_random_seed, get_float_dtype_by_name, JaxRNG, next_rng,
@@ -31,20 +31,18 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
     load_llama_config='',
     update_llama_config='',
     load_checkpoint='',
-    tokenizer=VideoLLaMAConfig.get_tokenizer_config(),
+    tokenizer='LargeWorldModel/LWM-Text-1M',
     llama=VideoLLaMAConfig.get_default_config(),
     jax_distributed=JaxDistributedConfig.get_default_config(),
-) 
+)
 
 
 class Sampler:
     def __init__(self):
         self.mesh = VideoLLaMAConfig.get_jax_mesh(FLAGS.mesh_dim)
         self.vqgan = VQGAN(FLAGS.vqgan_checkpoint, replicate=False)
-        self.prefix_tokenizer = VideoLLaMAConfig.get_tokenizer(
-            FLAGS.tokenizer, truncation_side='left', padding_side='left'
-        )
-        self.tokenizer = VideoLLaMAConfig.get_tokenizer(FLAGS.tokenizer)
+        self.prefix_tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer, truncation_side='left', padding_side='left')
+        self.tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer)
         self.n_tokens_per_frame = 257
         self.min_buffer_size = 256
         self.sharded_rng = next_rng()
@@ -53,7 +51,7 @@ class Sampler:
     @property
     def block_size(self):
         return max(self.config.scan_query_chunk_size, self.config.scan_key_chunk_size) * self.mesh.shape['sp']
-    
+
     @property
     def data_dim(self):
         return self.mesh.shape['dp'] * self.mesh.shape['fsdp']
@@ -74,7 +72,7 @@ class Sampler:
         bottom = (new_height + size) / 2
         image = image.crop((left, top, right, bottom))
         return np.array(image, dtype=np.float32) / 127.5 - 1
-    
+
     def _read_process_vision(self, path, max_n_frames):
         f = open_file(path, 'rb')
         if path.endswith('.png') or path.endswith('.jpg'):
@@ -123,7 +121,7 @@ class Sampler:
             vision = self._read_process_vision(prompt['input_path'], max_n_frames)
             text_1 = self.tokenizer.encode(f"<s>You are a helpful assistant. USER: {prompt['question']}\n")
             tail = self.tokenizer.encode(" ASSISTANT:")
-            
+
             tokens, vm = [], []
             tokens.extend(text_1)
             vm.extend([False] * len(text_1))
@@ -145,7 +143,7 @@ class Sampler:
             'vision_masks': vision_masks,
             'attention_mask': attention_mask
         }
-             
+
 
     def _load_model(self):
         if FLAGS.load_llama_config != '':
@@ -177,9 +175,9 @@ class Sampler:
         self.config = llama_config
 
         self.model = FlaxVideoLLaMAForCausalLM(
-            llama_config, 
-            input_shape=(512, self.block_size), 
-            seed=FLAGS.seed, 
+            llama_config,
+            input_shape=(512, self.block_size),
+            seed=FLAGS.seed,
             _do_init=False,
             dtype=get_float_dtype_by_name(FLAGS.dtype),
         )
@@ -237,13 +235,13 @@ class Sampler:
                 text = text.split(self.tokenizer.eos_token, maxsplit=1)[0]
             output_text.append(text)
         return output_text
-        
+
 def main(argv):
     assert FLAGS.prompt != ''
     assert FLAGS.input_file != ''
-    
+
     JaxDistributedConfig.initialize(FLAGS.jax_distributed)
-    set_random_seed(FLAGS.seed) 
+    set_random_seed(FLAGS.seed)
 
     prompts = [{'input_path': FLAGS.input_file, 'question': FLAGS.prompt}]
     sampler = Sampler()

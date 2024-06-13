@@ -5,7 +5,7 @@ export PROJECT_DIR="$( cd -- "$( dirname -- "$SCRIPT_DIR" )" &> /dev/null && pwd
 cd $PROJECT_DIR
 export PYTHONPATH="$PYTHONPATH:$PROJECT_DIR"
 
-export llama_tokenizer_path=""
+export llama_tokenizer_path="LargeWorldModel/LWM-Text-1M"
 export vqgan_checkpoint=""
 export lwm_checkpoint=""
 export input_file=""
@@ -24,6 +24,6 @@ python3 -u -m lwm.vision_chat \
     --max_n_frames=8 \
     --update_llama_config="dict(sample_mode='text',theta=50000000,max_sequence_length=131072,scan_attention=False,scan_query_chunk_size=128,scan_key_chunk_size=128,remat_attention='',scan_mlp=False,scan_mlp_chunk_size=2048,remat_mlp='',remat_block='',scan_layers=True)" \
     --load_checkpoint="params::$lwm_checkpoint" \
-    --tokenizer.vocab_file="$llama_tokenizer_path" \
+    --tokenizer="$llama_tokenizer_path" \
 2>&1 | tee ~/output.log
 read

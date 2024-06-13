@@ -14,13 +14,13 @@ pip install --upgrade pip
 # Python dependencies
 cat > $HOME/tpu_requirements.txt <<- EndOfFile
 -f https://storage.googleapis.com/jax-releases/libtpu_releases.html
-jax[tpu]==0.4.28
+jax[tpu]==0.4.29
 flax==0.8.4
 optax==0.2.2
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.0.0
-transformers==4.29.2
-datasets==2.19.1
+transformers==4.40.0
+datasets
 einops
 tqdm
 ml_collections

@@ -3,7 +3,7 @@ from tqdm import tqdm
 import imageio
 import numpy as np
 from PIL import Image
-from transformers import GenerationConfig
+from transformers import GenerationConfig, AutoTokenizer
 import jax
 import jax.numpy as jnp
 from jax.experimental.pjit import pjit
@@ -35,10 +35,10 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
     load_llama_config='',
     update_llama_config='',
     load_checkpoint='',
-    tokenizer=VideoLLaMAConfig.get_tokenizer_config(),
+    tokenizer='LargeWorldModel/LWM-Text-1M',
     llama=VideoLLaMAConfig.get_default_config(),
     jax_distributed=JaxDistributedConfig.get_default_config(),
-) 
+)
 
 
 def main(argv):
@@ -49,17 +49,15 @@ def main(argv):
         assert FLAGS.n_frames == 1
     else:
         raise ValueError(f"Unsupported output file extension: {FLAGS.output_file}")
-    
+
     JaxDistributedConfig.initialize(FLAGS.jax_distributed)
     set_random_seed(FLAGS.seed)
 
     tokens_per_frame = 257
     vqgan = VQGAN(FLAGS.vqgan_checkpoint, replicate=False)
     mesh = VideoLLaMAConfig.get_jax_mesh(FLAGS.mesh_dim)
-    tokenizer = VideoLLaMAConfig.get_tokenizer(FLAGS.tokenizer)
-    prefix_tokenizer = VideoLLaMAConfig.get_tokenizer(
-        FLAGS.tokenizer, truncation_side='left', padding_side='left'
-    )
+    tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer)
+    prefix_tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer, truncation_side='left', padding_side='left')
     if FLAGS.load_llama_config != '':
         llama_config = VideoLLaMAConfig.load_config(FLAGS.load_llama_config)
         updates = VideoLLaMAConfig(**FLAGS.llama)
@@ -92,7 +90,7 @@ def main(argv):
                 FLAGS.load_checkpoint, disallow_trainstate=True, max_buffer_size=32 * 2 ** 30
         )
         model = FlaxVideoLLaMAForCausalLM(
-            llama_config, 
+            llama_config,
             input_shape=(512, 8192),
             seed=FLAGS.seed,
             _do_init=False,
@@ -156,8 +154,8 @@ def main(argv):
         )
         with mesh:
             output, sharded_rng = _sharded_forward_generate(
-                params, sharded_rng, batch, 
-                tokens_per_frame, FLAGS.cfg_scale_image, 
+                params, sharded_rng, batch,
+                tokens_per_frame, FLAGS.cfg_scale_image,
                 FLAGS.top_k_image, FLAGS.temperature_image
             )
             output = jax.device_get(output)
@@ -184,7 +182,7 @@ def main(argv):
         img_enc, img = generate_first_frame(prompts, max_input_length=128)
         image_encodings.extend(img_enc)
         images.extend(img)
-    
+
     if FLAGS.n_frames == 1:
         image = images[0]
         Image.fromarray(image).save(FLAGS.output_file)
@@ -213,7 +211,7 @@ def main(argv):
         )
         with mesh:
             output, sharded_rng = _sharded_forward_generate(
-                params, sharded_rng, batch, 
+                params, sharded_rng, batch,
                 (FLAGS.n_frames - 1) * tokens_per_frame, FLAGS.cfg_scale_video,
                 FLAGS.top_k_video, FLAGS.temperature_video
             )
@@ -251,7 +249,7 @@ def main(argv):
     for frame in video:
         writer.append_data(frame)
     writer.close()
-    
+
     print('done')
 
 if __name__ == "__main__":

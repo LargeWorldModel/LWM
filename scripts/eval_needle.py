@@ -12,7 +12,7 @@ from jax.experimental.pjit import pjit
 from jax.sharding import PartitionSpec as PS
 import gcsfs
 import tiktoken
-from transformers import GenerationConfig
+from transformers import GenerationConfig, AutoTokenizer
 from tux import (
     define_flags_with_default, StreamingCheckpointer, JaxDistributedConfig,
     set_random_seed, get_float_dtype_by_name, JaxRNG, next_rng,
@@ -37,7 +37,7 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
     load_llama_config='',
     update_llama_config='',
     load_checkpoint='',
-    tokenizer=LLaMAConfig.get_tokenizer_config(),
+    tokenizer='LargeWorldModel/LWM-Text-1M',
     checkpointer=StreamingCheckpointer.get_default_config(),
     llama=LLaMAConfig.get_default_config(),
     jax_distributed=JaxDistributedConfig.get_default_config(),
@@ -103,7 +103,7 @@ class LLMNeedleHaystackTester:
 
         self.model = Sampler()
 
-        self.enc = LLaMAConfig.get_tokenizer(FLAGS.tokenizer)
+        self.enc = AutoTokenizer.from_pretrained(FLAGS.tokenizer)
         self.enc_tiktoken = tiktoken.encoding_for_model("gpt-4-1106-preview")
 
     def generate_random_number(self, num_digits):
@@ -310,10 +310,8 @@ class LLMNeedleHaystackTester:
 class Sampler:
     def __init__(self):
         self.mesh = LLaMAConfig.get_jax_mesh(FLAGS.mesh_dim)
-        self.prefix_tokenizer = LLaMAConfig.get_tokenizer(
-            FLAGS.tokenizer, truncation_side='left', padding_side='left'
-        )
-        self.tokenizer = LLaMAConfig.get_tokenizer(FLAGS.tokenizer)
+        self.prefix_tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer, truncation_side='left', padding_side='left')
+        self.tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer)
         self.sharded_rng = next_rng()
         self._load_model()
 

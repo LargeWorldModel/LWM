@@ -13,7 +13,7 @@ from jax.experimental.pjit import pjit
 from jax.sharding import PartitionSpec as PS
 import gcsfs
 import tiktoken
-from transformers import GenerationConfig, LlamaTokenizer
+from transformers import GenerationConfig, AutoTokenizer
 from tux import (
     define_flags_with_default, StreamingCheckpointer, JaxDistributedConfig,
     set_random_seed, get_float_dtype_by_name, JaxRNG, next_rng,
@@ -40,11 +40,11 @@ FLAGS, FLAGS_DEF = define_flags_with_default(
     load_llama_config='',
     update_llama_config='',
     load_checkpoint='',
-    tokenizer=LLaMAConfig.get_tokenizer_config(),
+    tokenizer='LargeWorldModel/LWM-Text-1M',
     checkpointer=StreamingCheckpointer.get_default_config(),
     llama=LLaMAConfig.get_default_config(),
     jax_distributed=JaxDistributedConfig.get_default_config(),
-) 
+)
 
 
 class LLMNeedleHaystackTester:
@@ -84,7 +84,7 @@ class LLMNeedleHaystackTester:
         self.needle = needle
         if not needle or not haystack_file or not retrieval_question:
             raise ValueError("Needle, haystack, and retrieval_question must be provided.")
-        
+
         self.rnd_number_digits = rnd_number_digits
         self.context_lengths_num_intervals = context_lengths_num_intervals
         self.document_depth_percent_intervals = document_depth_percent_intervals
@@ -108,7 +108,7 @@ class LLMNeedleHaystackTester:
 
         self.model = Sampler()
 
-        self.enc = LLaMAConfig.get_tokenizer(FLAGS.tokenizer)
+        self.enc = AutoTokenizer.from_pretrained(FLAGS.tokenizer)
         self.enc_tiktoken = tiktoken.encoding_for_model("gpt-4-1106-preview")
 
     def generate_random_number(self, num_digits):
@@ -145,7 +145,7 @@ class LLMNeedleHaystackTester:
         for random_city, (needle_rnd_number, depth_percent) in needles_info.items():
             context = self.generate_context(
                 self.needle.format(city=random_city, rnd_number=needle_rnd_number),
-                context, context_length, depth_percent 
+                context, context_length, depth_percent
             )
 
         if len(random_cities_retrieve) == 1:
@@ -186,7 +186,7 @@ class LLMNeedleHaystackTester:
 
             # We want to make sure that we place our needle at a sentence break so we first see what token a '.' is
             period_tokens = self.enc_tiktoken.encode('.')
-            
+
             # Then we iteration backwards until we find the first period
             while tokens_new_context and tokens_new_context[-1] not in period_tokens:
                 insertion_point -= 1
@@ -234,7 +234,7 @@ class LLMNeedleHaystackTester:
 
         full_contexts = self.read_context_files(FLAGS.n_rounds)
         full_tokens = [self.enc.encode(full_context) for full_context in full_contexts]
-        
+
         start = time.time()
         for context_length in self.context_lengths:
             trim_contexts = [self.enc.decode(full_token[:context_length]) for full_token in full_tokens]
@@ -250,7 +250,7 @@ class LLMNeedleHaystackTester:
                 for random_city, depth_percent in zip(random_cities, document_depths):
                     needles_info[random_city] = (
                         str(self.generate_random_number(self.rnd_number_digits)),
-                        depth_percent 
+                        depth_percent
                     )
                 context = self.create_contexts(needles_info, random_cities_retrieve, trim_contexts[i], context_length, i)
                 contexts.append(context)
@@ -299,7 +299,7 @@ class LLMNeedleHaystackTester:
             pbar.close()
         print('elapsed', time.time() - start)
         print('done')
-                
+
 
     def print_start_test_summary(self):
         print ("\n")
@@ -313,16 +313,14 @@ class LLMNeedleHaystackTester:
         if self.print_ongoing_status:
             self.print_start_test_summary()
         self.run_test()
-    
+
 
 
 class Sampler:
     def __init__(self):
         self.mesh = LLaMAConfig.get_jax_mesh(FLAGS.mesh_dim)
-        self.prefix_tokenizer = LLaMAConfig.get_tokenizer(
-            FLAGS.tokenizer, truncation_side='left', padding_side='left'
-        )
-        self.tokenizer = LLaMAConfig.get_tokenizer(FLAGS.tokenizer)
+        self.prefix_tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer, truncation_side='left', padding_side='left')
+        self.tokenizer = AutoTokenizer.from_pretrained(FLAGS.tokenizer)
         self.sharded_rng = next_rng()
         self._load_model()
 
@@ -330,7 +328,7 @@ class Sampler:
     def block_size(self):
         # return 2 * max(self.config.scan_query_chunk_size, self.config.scan_key_chunk_size)
         return max(self.config.scan_query_chunk_size, self.config.scan_key_chunk_size) * self.mesh.shape['sp']
-    
+
     @property
     def data_dim(self):
         return self.mesh.shape['dp'] * self.mesh.shape['fsdp']
@@ -369,9 +367,9 @@ class Sampler:
                     FLAGS.load_checkpoint, disallow_trainstate=True, max_buffer_size=32 * 2 ** 30
             )
             self.model = FlaxLLaMAForCausalLM(
-                llama_config, 
-                input_shape=(512, self.block_size), 
-                seed=FLAGS.seed, 
+                llama_config,
+                input_shape=(512, self.block_size),
+                seed=FLAGS.seed,
                 _do_init=False,
                 dtype=get_float_dtype_by_name(FLAGS.dtype),
             )
@@ -436,11 +434,11 @@ class Sampler:
                 text = text.split(self.tokenizer.eos_token, maxsplit=1)[0]
             output_text.append(text)
         return output_text
-        
+
 
 def main(argv):
     JaxDistributedConfig.initialize(FLAGS.jax_distributed)
-    set_random_seed(FLAGS.seed) 
+    set_random_seed(FLAGS.seed)
 
     ht = LLMNeedleHaystackTester(
         haystack_file=FLAGS.haystack_file,

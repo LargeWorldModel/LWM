@@ -5,7 +5,7 @@ export PROJECT_DIR="$( cd -- "$( dirname -- "$SCRIPT_DIR" )" &> /dev/null && pwd
 cd $PROJECT_DIR
 export PYTHONPATH="$PYTHONPATH:$PROJECT_DIR"
 
-export llama_tokenizer_path=""
+export llama_tokenizer_path="LargeWorldModel/LWM-Text-1M"
 export lwm_text_checkpoint=""
 # jsonl file containing text for haystack. Each line should be a json
 # with a single key "text" containing the text.
@@ -18,7 +18,7 @@ python3 -u scripts/eval_needle.py \
     --load_llama_config='7b' \
     --update_llama_config="dict(theta=10000000,max_sequence_length=131072,scan_attention=True,scan_query_chunk_size=1024,scan_key_chunk_size=1024,scan_mlp=True,scan_mlp_chunk_size=1024,scan_layers=True)" \
     --load_checkpoint="params::$lwm_text_checkpoint" \
-    --tokenizer.vocab_file="$llama_tokenizer_path" \
+    --tokenizer="$llama_tokenizer_path" \
     --max_tokens_per_batch=5000 \
     --output_file="$output_file" \
     --haystack_file="$haystack_file" \
