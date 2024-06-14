@@ -7,7 +7,6 @@ from functools import partial
 
 import numpy as np
 import jax
-from jax.lib import xla_bridge
 import jax.numpy as jnp
 from jax import lax
 from jax.sharding import PartitionSpec as PS
@@ -28,8 +27,7 @@ from transformers.utils import add_start_docstrings, add_start_docstrings_to_mod
 
 from ml_collections import ConfigDict
 from tux import function_args_to_config, load_pickle, open_file,  with_sharding_constraint, get_jax_mesh, get_gradient_checkpoint_policy
-from lwm.ring_attention import blockwise_ffn, ring_flash_attention_tpu, \
-    ring_attention_standard, ring_attention
+from ringattention import ringattention, blockwise_feedforward
 
 
 LLAMA_STANDARD_CONFIGS = {
@@ -544,22 +542,17 @@ class FlaxLLaMAAttention(nn.Module):
                 jnp.full(attention_mask.shape, jnp.finfo(self.dtype).min).astype(self.dtype),
             )
             attn_weights = None
-
-            platform = xla_bridge.get_backend().platform
-            if platform == "tpu":
-                ring_attention_fn = ring_flash_attention_tpu # fused version for TPU
-            else:
-                ring_attention_fn = ring_attention # non-fused version for GPU
             ring_attention_sharded = shard_map(
                 partial(
-                    ring_attention_fn,
+                    ringattention,
                     axis_name="sp",
                     float32_logits=True,
+                    cache_idx=None,
                     blockwise_kwargs=dict(
+                        causal_block_size=1,
                         deterministic=deterministic,
                         dropout_rng=dropout_rng,
                         attn_pdrop=self.config.attn_pdrop,
-                        causal=True,
                         query_chunk_size=self.config.scan_query_chunk_size,
                         key_chunk_size=self.config.scan_key_chunk_size,
                         dtype=self.dtype,
@@ -609,7 +602,7 @@ class FlaxLLaMAAttention(nn.Module):
             q_sp_dim = None if xq.shape[1] == 1 else 'sp'
             attn_weights = None
             ring_attention_sharded = shard_map(
-                partial(ring_attention_standard, axis_name="sp"), mesh=LLaMAConfig.get_jax_mesh(self.config.mesh_dim),
+                partial(ringattention, axis_name="sp"), mesh=LLaMAConfig.get_jax_mesh(self.config.mesh_dim),
                 in_specs=(
                     PS(("dp", "fsdp"), q_sp_dim, "tp", None),
                     PS(("dp", "fsdp"), "sp", "tp", None),
@@ -743,17 +736,14 @@ class FlaxLLaMABlock(nn.Module):
         feed_forward_input = self.ffn_norm(hidden_states)
 
         if self.config.scan_mlp and hidden_states.shape[1] >= self.config.scan_mlp_chunk_size:
-            feed_forward_hidden_states = blockwise_ffn(
+            feed_forward_hidden_states = blockwise_feedforward(
                 self.feed_forward,
                 feed_forward_input,
                 self.config.scan_mlp_chunk_size,
-                deterministic,
+                pre_remat=True,
             )
         else:
-            feed_forward_hidden_states = self.feed_forward(
-                feed_forward_input,
-                deterministic,
-            )
+            feed_forward_hidden_states = self.feed_forward(feed_forward_input, deterministic)
         feed_forward_hidden_states = with_sharding_constraint(feed_forward_hidden_states, PS(("dp", "fsdp"), None, "tp"))
 
         hidden_states = hidden_states + feed_forward_hidden_states

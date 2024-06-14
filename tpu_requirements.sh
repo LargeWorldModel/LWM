@@ -20,6 +20,7 @@ optax==0.2.2
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.0.0
 transformers==4.40.0
+ringattention==0.1.0
 datasets
 einops
 tqdm
@@ -39,7 +40,6 @@ decord
 ffmpeg-python
 h5py
 psutil
-zerofun @ git+https://github.com/danijar/zerofun.git
 EndOfFile
 
 pip install --upgrade -r $HOME/tpu_requirements.txt
