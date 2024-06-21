@@ -27,7 +27,7 @@ from transformers.utils import add_start_docstrings, add_start_docstrings_to_mod
 
 from ml_collections import ConfigDict
 from tux import function_args_to_config, load_pickle, open_file,  with_sharding_constraint, get_jax_mesh, get_gradient_checkpoint_policy
-from ringattention import ringattention, blockwise_feedforward
+from ringattention import ringattention, blockwise_feedforward, ringattention_jax
 
 
 LLAMA_STANDARD_CONFIGS = {
@@ -602,7 +602,7 @@ class FlaxLLaMAAttention(nn.Module):
             q_sp_dim = None if xq.shape[1] == 1 else 'sp'
             attn_weights = None
             ring_attention_sharded = shard_map(
-                partial(ringattention, axis_name="sp"), mesh=LLaMAConfig.get_jax_mesh(self.config.mesh_dim),
+                partial(ringattention_jax, axis_name="sp"), mesh=LLaMAConfig.get_jax_mesh(self.config.mesh_dim),
                 in_specs=(
                     PS(("dp", "fsdp"), q_sp_dim, "tp", None),
                     PS(("dp", "fsdp"), "sp", "tp", None),
