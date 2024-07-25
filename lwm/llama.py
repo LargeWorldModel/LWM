@@ -26,7 +26,7 @@ from transformers.modeling_flax_utils import FlaxPreTrainedModel
 from transformers.utils import add_start_docstrings, add_start_docstrings_to_model_forward, logging
 
 from ml_collections import ConfigDict
-from tux import function_args_to_config, load_pickle, open_file,  with_sharding_constraint, get_jax_mesh, get_gradient_checkpoint_policy
+from tux import function_args_to_config, load_pickle, open_file,  with_sharding_constraint, get_jax_mesh
 from ringattention import ringattention, blockwise_feedforward, ringattention_jax
 
 
@@ -150,11 +150,8 @@ class LLaMAConfig(PretrainedConfig):
         embd_pdrop=0.0,
         attn_pdrop=0.0,
         tie_word_embeddings=False,
-        remat_block='',
-        remat_attention='',
-        remat_mlp='',
-        scan_attention=False,
-        scan_mlp=False,
+        scan_attention=True,
+        scan_mlp=True,
         scan_query_chunk_size=1024,
         scan_key_chunk_size=1024,
         scan_mlp_chunk_size=1024,
@@ -176,9 +173,6 @@ class LLaMAConfig(PretrainedConfig):
         self.resid_pdrop = resid_pdrop
         self.embd_pdrop = embd_pdrop
         self.attn_pdrop = attn_pdrop
-        self.remat_block = remat_block
-        self.remat_attention = remat_attention
-        self.remat_mlp = remat_mlp
         self.scan_attention = scan_attention
         self.scan_mlp = scan_mlp
         self.scan_query_chunk_size = scan_query_chunk_size
@@ -556,7 +550,7 @@ class FlaxLLaMAAttention(nn.Module):
                         query_chunk_size=self.config.scan_query_chunk_size,
                         key_chunk_size=self.config.scan_key_chunk_size,
                         dtype=self.dtype,
-                        policy=get_gradient_checkpoint_policy('nothing_saveable'),
+                        policy=jax.checkpoint_policies.nothing_saveable,
                         precision=self.precision,
                         prevent_cse=not self.config.scan_layers,
                     )
@@ -673,19 +667,12 @@ class FlaxLLaMABlock(nn.Module):
     def setup(self) -> None:
         attention_module = FlaxLLaMAAttention
         mlp_module = FlaxLLaMAMLP
-        if self.config.remat_attention != '':
-            attention_module = remat(
-                FlaxLLaMAAttention, static_argnums=(4, 5, 6),
-                policy=get_gradient_checkpoint_policy(self.config.remat_attention),
-                prevent_cse=not self.config.scan_layers,
-            )
-        if self.config.remat_mlp != '':
+        if self.scan_map:
             mlp_module = remat(
-                FlaxLLaMAMLP, static_argnums=(1,),
-                policy=get_gradient_checkpoint_policy(self.config.remat_mlp),
+                self.feed_forward, static_argnums=(1,),
+                policy=jax.checkpoint_policies.nothing_saveable,
                 prevent_cse=not self.config.scan_layers,
             )
-
         self.attention = attention_module(
             self.config,
             dtype=self.dtype,
@@ -930,12 +917,6 @@ class FlaxLLaMABlockCollection(nn.Module):
         all_hidden_states = () if output_hidden_states else None
 
         block = FlaxLLaMABlock
-        if self.config.remat_block != '':
-            block = remat(
-                FlaxLLaMABlock, static_argnums=(4, 5, 6),
-                prevent_cse=not self.config.scan_layers,
-                policy=get_gradient_checkpoint_policy(self.config.remat_block)
-            )
         if self.config.scan_layers:
             initializing = self.is_mutable_collection('params')
             params_spec = (

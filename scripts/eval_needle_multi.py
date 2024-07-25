@@ -338,9 +338,6 @@ class Sampler:
             llama_config = LLaMAConfig.load_config(FLAGS.load_llama_config)
             updates = LLaMAConfig(**FLAGS.llama)
             llama_config.update(dict(
-                remat_block=updates.remat_block,
-                remat_attention=updates.remat_attention,
-                remat_mlp=updates.remat_mlp,
                 scan_attention=updates.scan_attention,
                 scan_mlp=updates.scan_mlp,
                 scan_query_chunk_size=updates.scan_query_chunk_size,

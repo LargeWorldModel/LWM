@@ -24,7 +24,7 @@ python3 -u -m lwm.train \
     --save_model_freq=0 \
     --save_milestone_freq=10 \
     --load_llama_config='debug' \
-    --update_llama_config="dict(theta=50000000,max_sequence_length=2048,scan_attention=True,scan_query_chunk_size=512,scan_key_chunk_size=1024,remat_attention='nothing_saveable',scan_mlp=True,scan_mlp_chunk_size=8192,remat_mlp='nothing_saveable',remat_block='nothing_saveable',scan_layers=True)" \
+    --update_llama_config="dict(theta=50000000,max_sequence_length=2048,scan_attention=True,scan_query_chunk_size=512,scan_key_chunk_size=1024,scan_mlp=True,scan_mlp_chunk_size=8192,scan_layers=True)" \
     --tokenizer="$llama_tokenizer_path" \
     --optimizer.type='adamw' \
     --optimizer.accumulate_gradient_steps=1 \
