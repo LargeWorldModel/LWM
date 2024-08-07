@@ -5,7 +5,7 @@ optax==0.2.2
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.0.0
 transformers==4.40.0
-ringattention==0.1.1
+ringattention @ git+https://github.com/forhaoliu/ringattention.git
 datasets
 einops
 tqdm

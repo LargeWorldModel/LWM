@@ -27,7 +27,7 @@ from transformers.utils import add_start_docstrings, add_start_docstrings_to_mod
 
 from ml_collections import ConfigDict
 from tux import function_args_to_config, load_pickle, open_file,  with_sharding_constraint, get_jax_mesh
-from ringattention import ringattention, blockwise_feedforward, ringattention_jax
+from ringattention import ringattention, blockwise_feedforward, ringattention_jax, ringattention_inference
 
 
 LLAMA_STANDARD_CONFIGS = {
@@ -579,8 +579,11 @@ class FlaxLLaMAAttention(nn.Module):
                 segment_mask = None
             else:
                 causal_mask = self.causal_mask[:, :, :query_length, :key_length]
-                segment_mask = segment_ids[:, :, None] == segment_ids[:, None, :]
-                segment_mask = segment_mask[:, None]
+                if segment_ids is not None:
+                    segment_mask = segment_ids[:, :, None] == segment_ids[:, None, :]
+                    segment_mask = segment_mask[:, None]
+                else:
+                    segment_mask = None
 
             batch_size = hidden_states.shape[0]
             causal_mask = jnp.broadcast_to(causal_mask, (batch_size,) + causal_mask.shape[1:])
@@ -596,7 +599,7 @@ class FlaxLLaMAAttention(nn.Module):
             q_sp_dim = None if xq.shape[1] == 1 else 'sp'
             attn_weights = None
             ring_attention_sharded = shard_map(
-                partial(ringattention_jax, axis_name="sp"), mesh=LLaMAConfig.get_jax_mesh(self.config.mesh_dim),
+                partial(ringattention_inference, axis_name="sp"), mesh=LLaMAConfig.get_jax_mesh(self.config.mesh_dim),
                 in_specs=(
                     PS(("dp", "fsdp"), q_sp_dim, "tp", None),
                     PS(("dp", "fsdp"), "sp", "tp", None),
@@ -667,9 +670,9 @@ class FlaxLLaMABlock(nn.Module):
     def setup(self) -> None:
         attention_module = FlaxLLaMAAttention
         mlp_module = FlaxLLaMAMLP
-        if self.scan_map:
+        if self.config.scan_mlp:
             mlp_module = remat(
-                self.feed_forward, static_argnums=(1,),
+                mlp_module, static_argnums=(1,),
                 policy=jax.checkpoint_policies.nothing_saveable,
                 prevent_cse=not self.config.scan_layers,
             )
@@ -767,7 +770,7 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
         # init input tensors
         input_ids = jnp.zeros(input_shape, dtype="i4")
         attention_mask = jnp.ones_like(input_ids)
-        segment_ids = jnp.zeros_like(input_ids)
+        segment_ids = None
         position_ids = jnp.broadcast_to(jnp.arange(jnp.atleast_2d(input_ids).shape[-1]), input_shape)
         params_rng, dropout_rng = jax.random.split(rng)
         rngs = {"params": params_rng, "dropout": dropout_rng}
@@ -786,7 +789,7 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
                 return_dict=False,
             )
         else:
-            module_init_outputs = self.module.init(rngs, input_ids, attention_mask, position_ids, return_dict=False)
+            module_init_outputs = self.module.init(rngs, input_ids, attention_mask, segment_ids, position_ids, return_dict=False)
 
         random_params = module_init_outputs["params"]
 
@@ -812,13 +815,13 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
         # init input variables to retrieve cache
         input_ids = jnp.ones((batch_size, max_length))
         attention_mask = jnp.ones_like(input_ids)
-        segment_ids = jnp.zeros_like(input_ids)
+        segment_ids = None
         position_ids = jnp.broadcast_to(jnp.arange(jnp.atleast_2d(input_ids).shape[-1]), input_ids.shape)
 
         init_variables = self.module.init(
             jax.random.PRNGKey(0), input_ids, attention_mask, segment_ids, position_ids, return_dict=False, init_cache=True
         )
-        return init_variables["cache"].unfreeze()
+        return init_variables["cache"]
 
     @add_start_docstrings_to_model_forward("")
     def __call__(
@@ -851,8 +854,6 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
 
         if attention_mask is None:
             attention_mask = jnp.ones((batch_size, sequence_length))
-        if segment_ids is None:
-            segment_ids = jnp.zeros((batch_size, sequence_length))
 
         # Handle any PRNG if needed
         rngs = {}
@@ -871,7 +872,7 @@ class FlaxLLaMAPreTrainedModel(FlaxPreTrainedModel):
             inputs,
             jnp.array(input_ids, dtype="i4"),
             jnp.array(attention_mask, dtype="i4"),
-            jnp.array(segment_ids, dtype="i4"),
+            segment_ids,
             jnp.array(position_ids, dtype="i4"),
             not train,
             False,
@@ -1076,8 +1077,6 @@ class FlaxLLaMAForCausalLMModule(nn.Module):
         batch_size, seq_length = input_ids.shape
         if attention_mask is None:
             attention_mask = jnp.ones_like(input_ids)
-        if segment_ids is None:
-            segment_ids = jnp.zeros_like(input_ids)
         if position_ids is None:
             position_ids = jnp.arange(seq_length, dtype=jnp.int32)[None].repeat(batch_size, axis=0)
         outputs = self.transformer(
