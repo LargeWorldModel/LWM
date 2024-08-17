@@ -155,7 +155,7 @@ class VisionTextProcessor(object):
             example, *aux = example
         else:
             aux = tuple()
-        rand_state = random.Random(aux[-1]) # makes augmentations deterministic by line number
+        rand_state = random.Random(aux[-1] if aux else 0) # makes augmentations deterministic by line number
         token_buffer = []
         loss_mask_buffer = []
         vision_mask = []
