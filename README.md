@@ -166,7 +166,7 @@ The [data.md](docs/data.md) provides details on the data processing and the [sha
 
 ## If you have issues
 
-This is based on the [codebase](https://github.com/forhaoliu/ringattention) of RingAttention, with the necessary features for vision-language training. The training and inference have been tested on both TPUv3 and TPUv4.
+This is based on the [codebase](https://github.com/haoliuhl/ringattention) of RingAttention, with the necessary features for vision-language training. The training and inference have been tested on both TPUv3 and TPUv4.
 
 If you encounter bugs, please open a GitHub issue!
 

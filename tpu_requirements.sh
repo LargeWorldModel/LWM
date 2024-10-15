@@ -20,7 +20,7 @@ optax==0.2.2
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.0.0
 transformers==4.40.0
-ringattention @ git+https://github.com/forhaoliu/ringattention.git
+ringattention @ git+https://github.com/haoliuhl/ringattention.git
 datasets
 einops
 tqdm
@@ -30,7 +30,7 @@ gcsfs
 requests
 typing-extensions
 sentencepiece
-tux @ git+https://github.com/forhaoliu/tux.git
+tux @ git+https://github.com/haoliuhl/tux.git
 Pillow
 ffmpeg-python
 ipdb
