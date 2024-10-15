@@ -1012,6 +1012,7 @@ class FlaxLLaMAModule(nn.Module):
         return_dict: bool = True,
     ):
         input_embeds = self.wte(input_ids.astype("i4"))
+        assert input_embeds.shape[1] <= self.config.max_sequence_length, f"Input sequence length {input_embeds.shape[1]} larger than max supported sequence length {self.config.max_sequence_length}"
 
         hidden_states = self.dropout(input_embeds, deterministic=deterministic)
 
