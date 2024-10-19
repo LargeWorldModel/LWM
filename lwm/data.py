@@ -112,7 +112,7 @@ class TextProcessor(object):
                 )
                 if i == 0:
                     text = self.config.prepend_text + text
-                tokens = self.tokenizer.encode(text)
+                tokens = self.tokenizer.encode(text, add_special_tokens=False)
                 token_buffer.extend(tokens)
                 loss_mask_buffer.extend([mask for _ in range(len(tokens))])
 
@@ -210,7 +210,7 @@ class VisionTextProcessor(object):
                         tokens.append(self.config.eov_token)
                     else:
                         tokens.append(self.config.eof_token)
-                tokens.extend(self.vision_end) 
+                tokens.extend(self.vision_end)
 
                 token_buffer.extend(tokens)
                 loss_mask_buffer.extend([mask for _ in range(len(tokens))])
@@ -228,7 +228,7 @@ class VisionTextProcessor(object):
                 token_buffer.extend(tokens)
                 loss_mask_buffer.extend([mask for _ in range(len(tokens))])
                 vision_mask.extend([False] * len(tokens))
-        
+
         if add_eos_token and self.config.add_eos_token:
             token_buffer.append(self.tokenizer.eos_token_id)
             loss_mask_buffer.append(1.0)
@@ -647,7 +647,7 @@ class JsonVisionDataset(object):
         else:
             raise ValueError(f'Unknown mode: {self.config.mode}')
         return fn()
-        
+
     def _iter_pad(self):
         chunk_size = self.config.batch_size * self.config.seq_length
         if self.config.use_data_sharded_loader:
@@ -805,7 +805,7 @@ class JsonVisionDataset(object):
                 token_buffer = token_buffer[chunk_size:]
                 loss_mask_buffer = loss_mask_buffer[chunk_size:]
                 vision_mask_buffer = vision_mask_buffer[chunk_size:]
-    
+
 
     def _make_callback(self, v):
         return lambda index: v[index]
